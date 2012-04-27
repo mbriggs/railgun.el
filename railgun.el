@@ -53,14 +53,27 @@
 
 (defun railgun-find-schema ()
   (interactive)
-  (let* ((name (railgun-table-name-for-model (railgun-prompt-for-resource "Schema of")))
-         (root (railgun-root))
-         (regexp (concat "create_table \"" name "\"")))
+  (let ((name (railgun-table-name-for-model (railgun-prompt-for-resource "Schema of")))
+        (root (eproject-root)))
 
-    (find-file (concat root "db/schema.rb"))
-    (or (re-search-forward regexp nil t)
-        (re-search-backward regexp nil t))
-    (message (concat "looking for " name))))
+    (cond ((railgun-find-file-if-it-exists "db/schema.rb")
+           (railgun-search-in-file (concat "create_table \"" name "\"")))
+
+          ((railgun-find-file-if-it-exists "db/structure.sql")
+           (railgun-search-in-file (concat "CREATE TABLE " name " ")))
+
+          (t (message "run rake db:migrate first")))))
+
+
+(defun railgun-search-in-file (re)
+  (or (re-search-forward re nil t)
+      (re-search-backward re nil t))
+  (message (concat "looking for " name)))
+
+(defun railgun-find-file-if-it-exists (file)
+  (let ((path (concat root file)))
+    (if (file-exists-p path)
+        (find-file path))))
 
 (defun railgun-find-model ()
   (interactive)
