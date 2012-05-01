@@ -75,9 +75,14 @@
     (if (file-exists-p path)
         (find-file path))))
 
+(defun railgun-find-view ()
+  (interactive)
+  (ido-find-file-in-dir
+   (pluralize-string (railgun-view-dir-for-model (railgun-prompt-for-controller "View for")))))
+
 (defun railgun-find-model ()
   (interactive)
-  (find-file (railgun-file-name-for-model (railgun-prompt-for-resource "Model"))))
+  (find-file (railgun-file-name-for-model (railgun-prompt-for-model))))
 
 (defun railgun-find-controller ()
   (interactive)
@@ -97,8 +102,12 @@
   (let ((model (railgun-class-from-file-name (buffer-file-name))))
     (railgun-prompt prompt (railgun-models) (if (is-railgun-model-p) model))))
 
-(defun railgun-prompt-for-controller ()
-  (railgun-prompt "Controller" (railgun-controllers)))
+(defun railgun-prompt-for-model ()
+  (railgun-prompt "Model" (railgun-models)))
+
+(defun railgun-prompt-for-controller (&optional prompt)
+  (let ((prompt (or prompt "Controller")))
+    (railgun-prompt prompt (railgun-controllers))))
 
 (defun railgun-prompt-for-presenter ()
   (railgun-prompt "Presenter" (railgun-presenters)))
@@ -175,7 +184,6 @@
 
 ;; parse entities
 
-
 (defun railgun-table-name-for-model (model)
   (pluralize-string (railgun-table-name-from-file-name
                      (railgun-file-name-for-model model))))
@@ -230,6 +238,12 @@
          (resource (replace-regexp-in-string dir "" file-name))
          (filename (replace-regexp-in-string "/" delim-with resource)))
     (replace-regexp-in-string ".rb$" "" filename)))
+
+(defun railgun-view-dir-for-model (controller)
+  (let* ((file-name (railgun-file-name-for-controller controller))
+         (dir (railgun-table-name-from-file-name file-name "/"))
+         (view-dir (replace-regexp-in-string "_controller$" "" dir)))
+    (concat "app/views/" view-dir)))
 
 (defun railgun-dir-name-for-file-name (file-name)
   (cond ((railgun-model-p file-name) "app/models/" )
