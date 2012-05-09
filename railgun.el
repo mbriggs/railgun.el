@@ -78,7 +78,7 @@
 (defun railgun-find-view ()
   (interactive)
   (ido-find-file-in-dir
-   (pluralize-string (railgun-view-dir-for-model (railgun-prompt-for-controller "View for")))))
+   (pluralize-string (railgun-view-dir-for-controller (railgun-prompt-for-controller "View for")))))
 
 (defun railgun-find-model ()
   (interactive)
@@ -239,11 +239,12 @@
          (filename (replace-regexp-in-string "/" delim-with resource)))
     (replace-regexp-in-string ".rb$" "" filename)))
 
-(defun railgun-view-dir-for-model (controller)
+
+(defun railgun-view-dir-for-controller (controller)
   (let* ((file-name (railgun-file-name-for-controller controller))
          (dir (railgun-table-name-from-file-name file-name "/"))
          (view-dir (replace-regexp-in-string "_controller$" "" dir)))
-    (concat "app/views/" view-dir)))
+    (concat (eproject-root) "app/views/" view-dir)))
 
 (defun railgun-dir-name-for-file-name (file-name)
   (cond ((railgun-model-p file-name) "app/models/" )
