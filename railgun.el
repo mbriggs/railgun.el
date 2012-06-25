@@ -15,7 +15,7 @@
 ;; The goal of this project is to provide easy ways to get to the places you
 ;; want to be.
 
-;; NOT DONE - railgun-find-views - show a list of views
+;; railgun-find-views       - show a list of views
 ;; railgun-find-controller  - jump to a given controller
 ;; railgun-find-presenter   - jump to a given presenter
 ;; railgun-find-helper      - jump to a given helper
