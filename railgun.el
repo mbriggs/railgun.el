@@ -15,7 +15,8 @@
 ;; The goal of this project is to provide easy ways to get to the places you
 ;; want to be.
 
-;; NOT DONE - railgun-find-views - show a list of views
+;; railgun-find-libs        - show a list of libs
+;; railgun-find-views       - show a list of views
 ;; railgun-find-controller  - jump to a given controller
 ;; railgun-find-presenter   - jump to a given presenter
 ;; railgun-find-helper      - jump to a given helper
@@ -88,6 +89,10 @@
   (interactive)
   (find-file (railgun-file-name-for-controller (railgun-prompt-for-controller))))
 
+(defun railgun-find-lib ()
+  (interactive)
+  (find-file (railgun-file-name-for-lib (railgun-prompt-for-lib))))
+
 (defun railgun-find-presenter ()
   (interactive)
   (find-file (railgun-file-name-for-presenter (railgun-prompt-for-presenter))))
@@ -112,6 +117,9 @@
 (defun railgun-prompt-for-presenter ()
   (railgun-prompt "Presenter" (railgun-presenters)))
 
+(defun railgun-prompt-for-lib ()
+  (railgun-prompt "Library" (railgun-libs)))
+
 (defun railgun-prompt-for-helper ()
   (railgun-prompt "Helper" (railgun-helpers)))
 
@@ -126,6 +134,7 @@
   (setq railgun/models-alist nil)
   (setq railgun/presenters-alist nil)
   (setq railgun/helpers-alist nil)
+  (setq railgun/libs-alist nil)
   (setq railgun/controllers-alist nil))
 
 (defun railgun-model-files ()
@@ -153,6 +162,20 @@
 
 (defun railgun-controllers ()
   (mapcar 'car (railgun-controllers-alist)))
+
+; libs
+
+(defun railgun-lib-files ()
+  (all-files-under-dir-recursively (concat (eproject-root) "lib") ".rb$"))
+
+(defvar railgun/libs-alist nil)
+(defun railgun-libs-alist ()
+  (or railgun/libs-alist
+      (setq railgun/libs-alist (mapcar 'railgun-class-and-file-name
+                                        (railgun-lib-files)))))
+
+(defun railgun-libs ()
+  (mapcar 'car (railgun-libs-alist)))
 
 ; presenters
 
@@ -197,6 +220,9 @@
 (defun railgun-file-name-for-presenter (presenter)
   (cdr (assoc presenter (railgun-presenters-alist))))
 
+(defun railgun-file-name-for-lib (lib)
+  (cdr (assoc lib (railgun-libs-alist))))
+
 (defun railgun-file-name-for-helper (helper)
   (cdr (assoc helper (railgun-helpers-alist))))
 
@@ -215,6 +241,9 @@
 
 (defun railgun-presenter-p (file-name)
   (string-match "app/presenters" file-name))
+
+(defun railgun-lib-p (file-name)
+  (string-match "\/lib\/" file-name))
 
 (defun railgun-helper-p (file-name)
   (string-match "app/helpers" file-name))
@@ -249,6 +278,7 @@
 (defun railgun-dir-name-for-file-name (file-name)
   (cond ((railgun-model-p file-name) "app/models/" )
         ((railgun-controller-p file-name) "app/controllers/" )
+        ((railgun-lib-p file-name) "lib/" )
         ((railgun-helper-p file-name) "app/helpers/" )
         ((railgun-presenter-p file-name) "app/presenters/" )))
 
