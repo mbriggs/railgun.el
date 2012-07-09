@@ -15,6 +15,7 @@
 ;; The goal of this project is to provide easy ways to get to the places you
 ;; want to be.
 
+;; railgun-find-libs        - show a list of libs
 ;; railgun-find-views       - show a list of views
 ;; railgun-find-controller  - jump to a given controller
 ;; railgun-find-presenter   - jump to a given presenter
@@ -88,6 +89,10 @@
   (interactive)
   (find-file (railgun-file-name-for-controller (railgun-prompt-for-controller))))
 
+(defun railgun-find-lib ()
+  (interactive)
+  (find-file (railgun-file-name-for-lib (railgun-prompt-for-lib))))
+
 (defun railgun-find-presenter ()
   (interactive)
   (find-file (railgun-file-name-for-presenter (railgun-prompt-for-presenter))))
@@ -95,6 +100,10 @@
 (defun railgun-find-helper ()
   (interactive)
   (find-file (railgun-file-name-for-helper (railgun-prompt-for-helper))))
+
+(defun railgun-find-domain ()
+  (interactive)
+  (find-file (railgun-file-name-for-domain (railgun-prompt-for-domain))))
 
 ;;; Prompts
 
@@ -112,8 +121,14 @@
 (defun railgun-prompt-for-presenter ()
   (railgun-prompt "Presenter" (railgun-presenters)))
 
+(defun railgun-prompt-for-lib ()
+  (railgun-prompt "Library" (railgun-libs)))
+
 (defun railgun-prompt-for-helper ()
   (railgun-prompt "Helper" (railgun-helpers)))
+
+(defun railgun-prompt-for-domain ()
+  (railgun-prompt "Entity" (railgun-domain)))
 
 (defun railgun-prompt (prompt list &optional initial-value)
   (let ((input (ido-completing-read (concat prompt ": ") list nil t initial-value)))
@@ -126,6 +141,8 @@
   (setq railgun/models-alist nil)
   (setq railgun/presenters-alist nil)
   (setq railgun/helpers-alist nil)
+  (setq railgun/libs-alist nil)
+  (setq railgun/domain-alist nil)
   (setq railgun/controllers-alist nil))
 
 (defun railgun-model-files ()
@@ -140,6 +157,24 @@
 (defun railgun-models ()
   (mapcar 'car (railgun-models-alist)))
 
+;; domain
+
+(defun railgun-domain-files ()
+  (all-files-under-dir-recursively (concat (eproject-root) "domain/") ".rb$"))
+
+(defvar railgun/domain-alist nil)
+(defun railgun-domain-alist ()
+  (or railgun/domain-alist
+      (setq railgun/model-alist (mapcar 'railgun-domain-class-and-file-name
+                                        (railgun-domain-files)))))
+
+(defun railgun-domain-class-and-file-name (file)
+  (let ((class (railgun-class-from-file-name file)))
+    `(,(replace-regexp-in-string "^[a-zA-Z]+::[a-zA-Z]+::" "" class) . ,file)))
+
+(defun railgun-domain ()
+  (mapcar 'car (railgun-domain-alist)))
+
 ; controllers
 
 (defun railgun-controller-files ()
@@ -153,6 +188,20 @@
 
 (defun railgun-controllers ()
   (mapcar 'car (railgun-controllers-alist)))
+
+; libs
+
+(defun railgun-lib-files ()
+  (all-files-under-dir-recursively (concat (eproject-root) "lib") ".rb$"))
+
+(defvar railgun/libs-alist nil)
+(defun railgun-libs-alist ()
+  (or railgun/libs-alist
+      (setq railgun/libs-alist (mapcar 'railgun-class-and-file-name
+                                        (railgun-lib-files)))))
+
+(defun railgun-libs ()
+  (mapcar 'car (railgun-libs-alist)))
 
 ; presenters
 
@@ -197,8 +246,14 @@
 (defun railgun-file-name-for-presenter (presenter)
   (cdr (assoc presenter (railgun-presenters-alist))))
 
+(defun railgun-file-name-for-lib (lib)
+  (cdr (assoc lib (railgun-libs-alist))))
+
 (defun railgun-file-name-for-helper (helper)
   (cdr (assoc helper (railgun-helpers-alist))))
+
+(defun railgun-file-name-for-domain (domain)
+  (cdr (assoc domain (railgun-domain-alist))))
 
 ;; predicates
 
@@ -216,8 +271,14 @@
 (defun railgun-presenter-p (file-name)
   (string-match "app/presenters" file-name))
 
+(defun railgun-lib-p (file-name)
+  (string-match "\/lib\/" file-name))
+
 (defun railgun-helper-p (file-name)
   (string-match "app/helpers" file-name))
+
+(defun railgun-domain-p (file-name)
+  (string-match "domain" file-name))
 
 ;; parsing
 
@@ -249,6 +310,7 @@
 (defun railgun-dir-name-for-file-name (file-name)
   (cond ((railgun-model-p file-name) "app/models/" )
         ((railgun-controller-p file-name) "app/controllers/" )
+        ((railgun-lib-p file-name) "lib/" )
         ((railgun-helper-p file-name) "app/helpers/" )
         ((railgun-presenter-p file-name) "app/presenters/" )))
 
