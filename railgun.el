@@ -101,6 +101,10 @@
   (interactive)
   (find-file (railgun-file-name-for-helper (railgun-prompt-for-helper))))
 
+(defun railgun-find-domain ()
+  (interactive)
+  (find-file (railgun-file-name-for-domain (railgun-prompt-for-domain))))
+
 ;;; Prompts
 
 (defun railgun-prompt-for-resource (prompt)
@@ -123,6 +127,9 @@
 (defun railgun-prompt-for-helper ()
   (railgun-prompt "Helper" (railgun-helpers)))
 
+(defun railgun-prompt-for-domain ()
+  (railgun-prompt "Entity" (railgun-domain)))
+
 (defun railgun-prompt (prompt list &optional initial-value)
   (let ((input (ido-completing-read (concat prompt ": ") list nil t initial-value)))
     (if (string= "" input) model input)))
@@ -135,6 +142,7 @@
   (setq railgun/presenters-alist nil)
   (setq railgun/helpers-alist nil)
   (setq railgun/libs-alist nil)
+  (setq railgun/domain-alist nil)
   (setq railgun/controllers-alist nil))
 
 (defun railgun-model-files ()
@@ -148,6 +156,24 @@
 
 (defun railgun-models ()
   (mapcar 'car (railgun-models-alist)))
+
+;; domain
+
+(defun railgun-domain-files ()
+  (all-files-under-dir-recursively (concat (eproject-root) "domain/") ".rb$"))
+
+(defvar railgun/domain-alist nil)
+(defun railgun-domain-alist ()
+  (or railgun/domain-alist
+      (setq railgun/model-alist (mapcar 'railgun-domain-class-and-file-name
+                                        (railgun-domain-files)))))
+
+(defun railgun-domain-class-and-file-name (file)
+  (let ((class (railgun-class-from-file-name file)))
+    `(,(replace-regexp-in-string "^[a-zA-Z]+::[a-zA-Z]+::" "" class) . ,file)))
+
+(defun railgun-domain ()
+  (mapcar 'car (railgun-domain-alist)))
 
 ; controllers
 
@@ -226,6 +252,9 @@
 (defun railgun-file-name-for-helper (helper)
   (cdr (assoc helper (railgun-helpers-alist))))
 
+(defun railgun-file-name-for-domain (domain)
+  (cdr (assoc domain (railgun-domain-alist))))
+
 ;; predicates
 
 
@@ -247,6 +276,9 @@
 
 (defun railgun-helper-p (file-name)
   (string-match "app/helpers" file-name))
+
+(defun railgun-domain-p (file-name)
+  (string-match "domain" file-name))
 
 ;; parsing
 
