@@ -33,11 +33,11 @@
     (controller . "app/controllers")
     (presenter  . "app/presenters")
     (helper     . "app/helpers")
-    (domain     . ((path . "domain")
-                   (from . (lambda (path)
-                             (replace-regexp-in-string "^domain/.*/" "" path)))
-                   (to   . (lambda (path)
-                             ()))))
+    (domain     . ((path          . "domain")
+                   (relative-path . "domain/.*/")
+                   (search-path   . (lambda (path)
+                                      (directory-files
+                                       (railgun-path "domain"))))))
     (lib        . "lib")))
 
 ;;; railgun-files
@@ -52,10 +52,19 @@
   (loop with results = '()
         for location in railgun--file-locations-alist
         (let ((type (car location))
-              (path (cdr location)))
-          (push results `(,type
-                          ,path
-                          ,(railgun-relative-path location)
-                          ,(railgun-class-from-location))))))
+              (files (all-files-under-dir-recursively (cdr location))))
+          (append results (mapcar (lambda (file)
+                                    `(,type
+                                      ,file
+                                      ,(railgun-relative-path type file)
+                                      ,(railgun-class type file)))
+                                  files)))))
+
+(defun railgun-relative-path (type path)
+  )
+(defun railgun-class ())
+
+(defun railgun-path (path)
+  (concat (railway-root) path))
 
 (provide 'railgun)
