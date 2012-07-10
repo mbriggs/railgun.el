@@ -28,17 +28,30 @@
 (require 'inflections)
 (require 'cl)
 
-(defvar railgun--file-locations-alist
+(defvar railgun--file-locations
   '((model      . "app/models")
     (controller . "app/controllers")
     (presenter  . "app/presenters")
     (helper     . "app/helpers")
-    (domain     . ((path          . "domain")
-                   (relative-path . "domain/.*/")
+    (domain     . ((relative-path . "domain/.*/")
                    (search-path   . (lambda (path)
                                       (directory-files
                                        (railgun-path "domain"))))))
     (lib        . "lib")))
+
+(defun railgun-location (type)
+  (cdr (assoc type railgun-file-locations)))
+
+(defun railgun-location-prop (type location)
+  (cdr (assoc location)))
+
+(defun railgun-relative-path (type path)
+  (let* ((location (railgun-location type))
+         (regexp (if (listp location)
+                     (railgun-location-prop 'relative-path location)
+                   location)))
+
+    (replace-regexp-in-string (railgun-path regexp) "" path)))
 
 ;;; railgun-files
 
@@ -60,8 +73,6 @@
                                       ,(railgun-class type file)))
                                   files)))))
 
-(defun railgun-relative-path (type path)
-  )
 (defun railgun-class ())
 
 (defun railgun-path (path)
