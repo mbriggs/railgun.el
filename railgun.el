@@ -28,43 +28,31 @@
 (require 'inflections)
 (require 'cl)
 
-(defvar railgun--file-locations
+;;; parsing
+
+(defvar railgun--class-paths
   '((model      . "app/models/")
     (controller . "app/controllers/")
     (presenter  . "app/presenters/")
     (helper     . "app/helpers/")
-    (domain     . ((relative-path . "domain/.*/")
-                   (search-paths  . (lambda ()
-                                      (railgun-dir (railgun-path "domain/"))))))
+    (domain     . "domain/.*/")
     (lib        . "lib/")
     (unit-test  . "test/unit/")
     (func-test  . "test/functional/")
-    (spec       . "spec/")
-    (javascript . "app/assets/javascripts/")
-    (stylesheet . "app/assets/stylesheets/")))
+    (spec       . "spec/\\(domain/.*\\|.*/\\)")))
 
-(defun railgun-dir (path)
-  (directory-files path nil "^[^\.]"))
 
-(defun railgun-location (type)
-  (cdr (assoc type railgun-file-locations)))
-
-(defun railgun-location-prop (type location)
-  (cdr (assoc location)))
-
-(defun railgun-search-paths (type path)
-  (let ((location (railgun-location type)))
-    (if (listp location)
-        (funcall (railgun-location-prop 'search-paths location))
-      '(location))))
+(defun railgun-class-path (type)
+  (cdr (assoc type railgun--class-paths)))
 
 (defun railgun-relative-path (type path)
-  (let* ((location (railgun-location type))
-         (regexp (if (listp location)
-                     (railgun-location-prop 'relative-path location)
-                   location)))
+  (let ((base-path (railgun-path (railgun-class-path type))))
+    (replace-regexp-in-string base-path "" path)))
 
-    (replace-regexp-in-string (railgun-path regexp) "" path)))
+(defun railgun-class-for-path (path)
+  (let* ((chopped (replace-regexp-in-string ".rb$" "" path))
+         (moduled (replace-regexp-in-string "/" "::" chopped)))
+    (capitalize moduled)))
 
 ;;; railgun-files
 
@@ -79,14 +67,13 @@
         for location in railgun--file-locations-alist
         (let ((type (car location))
               (files (all-files-under-dir-recursively (cdr location))))
-          (append results (mapcar (lambda (file)
-                                    `(,type
-                                      ,file
-                                      ,(railgun-relative-path type file)
-                                      ,(railgun-class type file)))
-                                  files)))))
+          (append results (mapcar 'railgun-build-file-info files)))))
 
-(defun railgun-class ())
+(defun railgun-build-file-info (file)
+  `(,(railgun-class-for-path type file)
+    ,(railgun-relative-path type file)
+    ,type
+    ,file))
 
 (defun railgun-path (path)
   (concat (railway-root) path))
