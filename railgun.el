@@ -29,21 +29,34 @@
 (require 'cl)
 
 (defvar railgun--file-locations
-  '((model      . "app/models")
-    (controller . "app/controllers")
-    (presenter  . "app/presenters")
-    (helper     . "app/helpers")
+  '((model      . "app/models/")
+    (controller . "app/controllers/")
+    (presenter  . "app/presenters/")
+    (helper     . "app/helpers/")
     (domain     . ((relative-path . "domain/.*/")
-                   (search-path   . (lambda (path)
-                                      (directory-files
-                                       (railgun-path "domain"))))))
-    (lib        . "lib")))
+                   (search-paths  . (lambda ()
+                                      (railgun-dir (railgun-path "domain/"))))))
+    (lib        . "lib/")
+    (unit-test  . "test/unit/")
+    (func-test  . "test/functional/")
+    (spec       . "spec/")
+    (javascript . "app/assets/javascripts/")
+    (stylesheet . "app/assets/stylesheets/")))
+
+(defun railgun-dir (path)
+  (directory-files path nil "^[^\.]"))
 
 (defun railgun-location (type)
   (cdr (assoc type railgun-file-locations)))
 
 (defun railgun-location-prop (type location)
   (cdr (assoc location)))
+
+(defun railgun-search-paths (type path)
+  (let ((location (railgun-location type)))
+    (if (listp location)
+        (funcall (railgun-location-prop 'search-paths location))
+      '(location))))
 
 (defun railgun-relative-path (type path)
   (let* ((location (railgun-location type))
