@@ -56,11 +56,16 @@
 
 ;;; railgun-files
 
-; file is (type path relative-path class)
 (defvar railgun--files '())
 (defun railgun-files ()
   (if (railgun--files) railgun--files
     (setq railgun--files (build-railgun-files))))
+
+(defun railgun-filter-by-type (type)
+  (delq nil
+        (mapcar (lambda (file)
+                  (and (eq type (railgun-file-type file)) file))
+                railgun-files)))
 
 (defun build-railgun-files ()
   (loop with results = '()
@@ -72,8 +77,10 @@
 (defun railgun-build-file-info (file)
   `(,(railgun-class-for-path type file)
     ,(railgun-relative-path type file)
-    ,type
-    ,file))
+    ,type ,file))
+
+(defun railgun-file-type (file)
+  (cddar file))
 
 (defun railgun-path (path)
   (concat (railway-root) path))
