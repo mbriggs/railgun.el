@@ -35,30 +35,52 @@
     (controller . "app/controllers/")
     (presenter  . "app/presenters/")
     (helper     . "app/helpers/")
-    (domain     . "domain/.*/")
+    (domain     . ("domain/" . "domain/.*/"))
     (lib        . "lib/")
     (unit-test  . "test/unit/")
     (func-test  . "test/functional/")
-    (spec       . "spec/\\(domain/.*\\|.*/\\)")))
+    (spec       . ("spec/" . "spec/\\(domain/.*\\|.*/\\)"))))
 
+(defun railgun-file-types ()
+  (mapcar 'car railgun--class-paths))
 
-(defun railgun-class-path (type)
-  (cdr (assoc type railgun--class-paths)))
+(defun railgun-search-path (type)
+  (let ((path (cdr (assoc type railgun--class-paths))))
+    (if (listp path) (car path) path)))
+
+(defun railgun-base-regexp (type)
+  (let ((path (cdr (assoc type railgun--class-paths))))
+    (if (listp path) (cdr path) path)))
 
 (defun railgun-relative-path (type path)
-  (let ((base-path (railgun-path (railgun-class-path type))))
-    (replace-regexp-in-string base-path "" path)))
+  (let ((replace (railgun-path (railgun-base-regexp type))))
+    (replace-regexp-in-string replace "" path)))
 
 (defun railgun-class-for-path (path)
   (let* ((chopped (replace-regexp-in-string ".rb$" "" path))
-         (moduled (replace-regexp-in-string "/" "::" chopped)))
-    (capitalize moduled)))
+         (moduled (replace-regexp-in-string "/" "::" chopped))
+         (capitalized (capitalize moduled)))
+    (replace-regexp-in-string "_" "" capitalized)))
+
+(defun railgun-table-for-path (path)
+  (let* ((chopped (replace-regexp-in-string ".rb$" "" path))
+         (moduled (replace-regexp-in-string "/" "_" chopped)))
+    (pluralize-string moduled)))
 
 ;;; railgun-files
 
-(defvar railgun--files '())
+(defun railgun-message-files ()
+  (interactive)
+  (railgun-clear-caches)
+  (print (railgun-files)))
+
+(defun railgun-clear-caches ()
+  (interactive)
+  (setq railgun--files nil))
+
+(defvar railgun--files nil)
 (defun railgun-files ()
-  (if (railgun--files) railgun--files
+  (if railgun--files railgun--files
     (setq railgun--files (build-railgun-files))))
 
 (defun railgun-filter-by-type (type)
@@ -69,15 +91,19 @@
 
 (defun build-railgun-files ()
   (loop with results = '()
-        for location in railgun--file-locations-alist
-        (let ((type (car location))
-              (files (all-files-under-dir-recursively (cdr location))))
-          (append results (mapcar 'railgun-build-file-info files)))))
+        for type in (railgun-file-types)
+        do (let* ((files (all-files-under-dir-recursively (railgun-search-path type)))
+                  (file-info (mapcar 'railgun-build-file-info files)))
+             (mapcar (lambda (info)
+                       (push info results))
+                     file-info))
 
-(defun railgun-build-file-info (file)
-  `(,(railgun-class-for-path type file)
-    ,(railgun-relative-path type file)
-    ,type ,file))
+        return results))
+
+(defun railgun-build-file-info (path)
+  (let* ((relative-path (railgun-relative-path type path))
+         (class-name (railgun-class-for-path relative-path)))
+    `(,class-name ,relative-path ,type ,path)))
 
 (defun railgun-file-type (file)
   (cddar file))
