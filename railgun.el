@@ -69,7 +69,7 @@
 
 ;;; railgun-files
 
-(defun railgun-message-files ()
+(defun railgun-debug--message-files ()
   (interactive)
   (railgun-clear-caches)
   (print (railgun-files)))
@@ -89,8 +89,6 @@
                   (and (eq type (railgun-file-type file)) file))
                 railgun-files)))
 
-;<dlowe> mbriggs: (loop for a in list-a nconc (loop for b in list-b collect
-;        b))?
 (defun build-railgun-files ()
   (loop for type in (railgun-file-types)
         append (mapcar 'railgun-build-file-info
