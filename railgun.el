@@ -93,9 +93,8 @@
 ;        b))?
 (defun build-railgun-files ()
   (loop for type in (railgun-file-types)
-        for files in (all-files-under-dir-recursively (railgun-search-path type))
-        for file-info in (mapcar 'railgun-build-file-info files)
-        collect file-info))
+        append (mapcar 'railgun-build-file-info
+                       (all-files-under-dir-recursively (railgun-search-path type)))))
 
 (defun railgun-build-file-info (path)
   (let* ((relative-path (railgun-relative-path type path))
