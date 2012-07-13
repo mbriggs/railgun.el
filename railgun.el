@@ -89,16 +89,13 @@
                   (and (eq type (railgun-file-type file)) file))
                 railgun-files)))
 
+;<dlowe> mbriggs: (loop for a in list-a nconc (loop for b in list-b collect
+;        b))?
 (defun build-railgun-files ()
-  (loop with results = '()
-        for type in (railgun-file-types)
-        do (let* ((files (all-files-under-dir-recursively (railgun-search-path type)))
-                  (file-info (mapcar 'railgun-build-file-info files)))
-             (mapcar (lambda (info)
-                       (push info results))
-                     file-info))
-
-        return results))
+  (loop for type in (railgun-file-types)
+        for files in (all-files-under-dir-recursively (railgun-search-path type))
+        for file-info in (mapcar 'railgun-build-file-info files)
+        collect file-info))
 
 (defun railgun-build-file-info (path)
   (let* ((relative-path (railgun-relative-path type path))
