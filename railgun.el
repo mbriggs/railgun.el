@@ -75,7 +75,7 @@
   (let* ((class (railgun-prompt "Blueprint for" (railgun-entities)))
          (search (concat "^" class ".blueprint")))
 
-    (when (railgun-find-file-if-it-exists (railgun-path "test/blueprints.rb"))
+    (when (railgun-find-file-if-it-exists "test/blueprints.rb")
       (or (re-search-forward search nil t)
         (re-search-backward search nil t)))))
 
@@ -85,7 +85,7 @@
          (class (concat "factory.*" (car file)))
          (sym (concat "factory +:" (railgun-table-for-file file))))
 
-    (when (railgun-find-file-if-it-exists (railgun-path "spec/factories.rb"))
+    (when (railgun-find-file-if-it-exists "spec/factories.rb")
       (or (or (re-search-forward class nil t)
               (re-search-backward class nil t))
           (or (re-search-forward sym nil t)
@@ -101,7 +101,7 @@
           ((railgun-find-file-if-it-exists "db/structure.sql")
            (railgun-search-in-file (concat "CREATE TABLE " name " ")))
 
-          (t (message "run rake db:migrate first")))))
+          (t (message "can't find schema file, run rake db:migrate first")))))
 
 
 (defun railgun-search-in-file (re)
