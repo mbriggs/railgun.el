@@ -44,21 +44,23 @@
 ;; So for example, if you add a "domain" folder in the rails-root, that has a sub-folder which is not
 ;; part of the class name (real use case)
 
-;; (domain . ("domain/" . "domain/.*/"))
+;; (railgun-add-class-path (domain . ("domain/" . "domain/.*/")))
+;; (railgun-define-finder domain "Entity")
 
 ;; which will take all rb files in domain, and given a path of domain/common/foo/foo_class.rb, will consider
-;; that to be Foo::FooClass
+;; that to be Foo::FooClass. It will also create a function railgun-find-domain which will have a prompt of
+;; "Entity: ".
 
 ;; the default case is simpler, for example, a presenters directory
 
 ;; (presenter . "app/presenters/")
+;; (railgun-define-finder presenter)
 
 ;; to reset the class paths to the default (for example, when switching projects) use railgun-reset-class-paths
 ;; to clear caches (for example, when adding a new file) use railgun-clear-caches
 
 (require 'inflections)
 (require 'cl)
-
 
 ;;; config
 
@@ -70,32 +72,28 @@
 
 (defun railgun-find-blueprint ()
   (interactive)
-  (let* ((file (railgun-build-file-info (railgun-prompt-for-type railgun-entity "Blueprint for")))
-         (class (car file))
-
+  (let* ((class (railgun-prompt "Blueprint for" (railgun-entities)))
          (search (concat "^" class ".blueprint")))
-    (find-file (railgun-path "test/blueprints.rb"))
-    (or (re-search-forward search nil t)
-        (re-search-backward search nil t))))
+
+    (when (railgun-find-file-if-it-exists (railgun-path "test/blueprints.rb"))
+      (or (re-search-forward search nil t)
+        (re-search-backward search nil t)))))
 
 (defun railgun-find-factory ()
   (interactive)
-  (let* ((file (railgun-build-file-info (railgun-prompt-for-type railgun-entity "Factory for")))
-         (relative-path (railgun-build-file-info file))
+  (let* ((file (railgun-prompt-for-file "Factory for" (railgun-entities)))
+         (class (concat "factory.*" (car file)))
+         (sym (concat "factory +:" (railgun-table-for-file file))))
 
-         (klass (concat "factory.*" (railgun-class-for-path relative-path)))
-         (sym (concat "factory +:" (railgun-table-for-path relative-path))))
-
-    (when (find-file-if-it-exists (railgun-path "spec/factories.rb"))
-      (or (or (re-search-forward klass nil t)
-              (re-search-backward klass nil t))
+    (when (railgun-find-file-if-it-exists (railgun-path "spec/factories.rb"))
+      (or (or (re-search-forward class nil t)
+              (re-search-backward class nil t))
           (or (re-search-forward sym nil t)
               (re-search-backward sym nil t))))))
 
 (defun railgun-find-schema ()
   (interactive)
-  (let ((name (railgun-table-for-path
-               (railgun-prompt-for railgun-entity "Schema of: "))))
+  (let ((name (railgun-prompt-for-table-name "Schema for")))
 
     (cond ((railgun-find-file-if-it-exists "db/schema.rb")
            (railgun-search-in-file (concat "create_table \"" name "\"")))
@@ -118,15 +116,23 @@
 
 ;;; define-finder
 
-(defmacro railgun-define-finder (type prompt)
-  `(defun ,(intern (concat "railgun-find-" (symbol-name type))) ()
-     (interactive)
-     (let ((prompt (concat ,prompt ": "))
-           (list (railgun-filter-by-type (quote ,type))))
-       (find-file (railgun-prompt-for-file prompt list)))))
+(defmacro railgun-define-finder (type &optional prompt)
+  (let ((prompt (or prompt (capitalize (symbol-name type)))))
+    `(defun ,(intern (concat "railgun-find-" (symbol-name type))) ()
+       (interactive)
+       (let ((prompt (concat ,prompt ": "))
+             (list (railgun-filter-by-type (quote ,type))))
+         (find-file (railgun-prompt-for-path prompt list))))))
+
+(defun railgun-prompt-for-table-name (prompt)
+  (let ((file (railgun-prompt-for-file prompt (railgun-entities))))
+    (railgun-table-for-path (railgun-file-relative-path file))))
+
+(defun railgun-prompt-for-path (prompt list)
+  (railgun-file-path (railgun-prompt-for-file prompt list)))
 
 (defun railgun-prompt-for-file (prompt list)
-  (railgun-find-path-in-list (railgun-prompt prompt list) list))
+  (assoc (railgun-prompt prompt list) list))
 
 (defun railgun-find-path-in-list (class-name list)
   (railgun-file-path (assoc class-name list)))
@@ -139,12 +145,12 @@
 
 
 
-(railgun-define-finder model      "Model")
-(railgun-define-finder controller "Controller")
-(railgun-define-finder presenter  "Presenter")
-(railgun-define-finder helper     "Helper")
-(railgun-define-finder domain     "Entity")
-(railgun-define-finder lib        "Lib")
+(railgun-define-finder model)
+(railgun-define-finder controller)
+(railgun-define-finder presenter)
+(railgun-define-finder helper)
+(railgun-define-finder domain "Entity")
+(railgun-define-finder lib)
 
 
 ;;; parsing
@@ -161,6 +167,9 @@
     (spec       . ("spec/" . "spec/\\(domain/.*\\|.*/\\)"))))
 
 (defvar railgun--class-paths (copy-list railgun--default-class-paths))
+
+(defun railgun-add-class-path (path)
+  (push path railgun--class-paths))
 
 (defun railgun-reset-class-paths ()
   (railgun-clear-caches)
@@ -187,6 +196,9 @@
          (capitalized (capitalize moduled)))
     (replace-regexp-in-string "_" "" capitalized)))
 
+(defun railgun-table-for-file (file)
+  (railgun-table-for-path (railgun-file-relative-path file)))
+
 (defun railgun-table-for-path (path)
   (let* ((chopped (replace-regexp-in-string ".rb$" "" path))
          (moduled (replace-regexp-in-string "/" "_" chopped)))
@@ -208,6 +220,9 @@
   (if railgun--files railgun--files
     (setq railgun--files (build-railgun-files))))
 
+(defun railgun-entities ()
+  (railgun-filter-by-type railgun-entity))
+
 (defun railgun-filter-by-type (type)
   (delq nil
         (mapcar (lambda (file)
@@ -227,9 +242,15 @@
          (class-name (railgun-class-for-path relative-path)))
     `(,class-name ,relative-path ,type ,path)))
 
+(defun railgun-relative-path-for-class (class)
+  (railgun-file-relative-path (railgun-file-for-class class)))
+
+(defun railgun-file-for-class (class)
+  (assoc class (railgun-files)))
+
 (defun railgun-file-relative-path (file) (cadr file))
-(defun railgun-file-type (file) (caddr file))
-(defun railgun-file-path (file) (cadddr file))
+(defun railgun-file-type          (file) (caddr file))
+(defun railgun-file-path          (file) (cadddr file))
 
 ;;; utils
 
