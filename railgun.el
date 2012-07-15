@@ -64,7 +64,7 @@
 
 ;;; config
 
-(defvar railgun-entity 'domain
+(defvar railgun-entity 'model
   "entity type to be used in railgun.
    change this if you have your models as another type")
 
@@ -113,6 +113,12 @@
   (let ((path (railgun-path file)))
     (if (file-exists-p path)
         (find-file path))))
+
+(defun railgun-find-entity ()
+  (interactive)
+  (let ((prompt (capitalize (symbol-name railgun-entity)))
+        (list (railgun-filter-by-type railgun-entity)))
+    (find-file (railgun-prompt-for-path (concat prompt ": ") list))))
 
 ;;; tests
 
