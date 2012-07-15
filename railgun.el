@@ -114,6 +114,41 @@
     (if (file-exists-p path)
         (find-file path))))
 
+;;; tests
+
+(defun railgun-find-spec ()
+  (interactive)
+  (let* ((target (concat (railgun-current-class) "Spec"))
+         (path (railgun-file-path (assoc target (railgun-files)))))
+    (and path (find-file path))))
+
+(defun railgun-find-test ()
+  (interactive)
+  (let* ((target (concat (railgun-current-class) "Test"))
+         (path (railgun-file-path (assoc target (railgun-files)))))
+    (and path (find-file path))))
+
+(defun railgun-find-implementation ()
+  (interactive)
+  (let* ((target (replace-regexp-in-string "\\(Spec\\|Test\\)$" "" (railgun-current-class)))
+         (path (railgun-file-path (assoc target (railgun-files)))))
+    (and path (find-file path))))
+
+(defun railgun-find-spec-or-test ()
+  (interactive)
+  (or (railgun-find-spec)
+      (railgun-find-test)
+      (message "could not find spec or test for current file")))
+
+(defun railgun-toggle-test-and-implmentation ()
+  (interactive)
+  (let ((type (railgun-file-type (railgun-current-file-info))))
+    (if (or (eq 'spec type)
+            (eq 'unit-test type))
+        (railgun-find-implementation)
+      (railgun-find-spec-or-test))))
+
+
 ;;; define-finder
 
 (defmacro railgun-define-finder (type &optional prompt)
@@ -160,11 +195,11 @@
     (controller . "app/controllers/")
     (presenter  . "app/presenters/")
     (helper     . "app/helpers/")
-    (domain     . ("domain/" . "domain/.*/"))
+    (domain     . ("domain/" . "domain/[a-zA-Z0-9_]+/"))
     (lib        . "lib/")
     (unit-test  . "test/unit/")
     (func-test  . "test/functional/")
-    (spec       . ("spec/" . "spec/\\(domain/.*\\|.*/\\)"))))
+    (spec       . ("spec/" . "spec/\\(domain/[a-zA-Z0-9_]+/\\|[a-zA-Z0-9_]+/\\)"))))
 
 (defvar railgun--class-paths (copy-list railgun--default-class-paths))
 
@@ -235,7 +270,10 @@
                        (all-files-under-dir-recursively (railgun-search-path type)))))
 
 (defun railgun-current-file-info ()
-  (railgun-build-file-info (buffer-file-name)))
+  (railgun-find-file-for-path (buffer-file-name)))
+
+(defun railgun-current-class ()
+  (car (railgun-current-file-info)))
 
 (defun railgun-build-file-info (path)
   (let* ((relative-path (railgun-relative-path type path))
@@ -247,6 +285,11 @@
 
 (defun railgun-file-for-class (class)
   (assoc class (railgun-files)))
+
+(defun railgun-find-file-for-path (path)
+  (find-if '(lambda (info)
+              (string= path (railgun-file-path info)))
+           (railgun-files)))
 
 (defun railgun-file-relative-path (file) (cadr file))
 (defun railgun-file-type          (file) (caddr file))
