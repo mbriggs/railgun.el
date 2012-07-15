@@ -4,16 +4,21 @@
 
 ;; Author: Matt Briggs <matt@mattbriggs.net>
 ;; Keywords: navigation rails
-;; Version: 1
+;; Version: 2
 
 
 ;;; Dependancies: inflections.el
+;                 railway.el
+
+; railway is basically an extraction of the minor mode and project root functions
+; from rinari. If you don't want to use it (or already use rinari), fire me an email
+; and i will add customization support to allow for any "project root" function to be used.
 
 
 ;;; Commentary:
 
 ;; The goal of this project is to provide easy ways to get to the places you
-;; want to be.
+;; want to be. The built in finders are
 
 ;; railgun-find-libs        - show a list of libs
 ;; railgun-find-views       - show a list of views
@@ -25,37 +30,70 @@
 ;; railgun-find-blueprint   - find the entry in blueprints.rb for a given model (if you use machinist)
 ;; railgun-find-factory     - find the entry in factories.rb for a given model (if you use factory_girl)
 
+;;; Customizing railgun:
 
+;; you can add another type by adding to railgun--class-paths. it is an alist with the format of
+
+;; (type<symbol> . path<string>)
+
+;; the path will determine where we search for files, and how we determine the class. if those are different,
+;; you can use the alternate syntax
+
+;; (type<symbol> . (search-path<string> . path-that-doesn't-apply-re<string>))
+
+;; So for example, if you add a "domain" folder in the rails-root, that has a sub-folder which is not
+;; part of the class name (real use case)
+
+;; (railgun-add-class-path (domain . ("domain/" . "domain/.*/")))
+;; (railgun-define-finder domain "Entity")
+
+;; which will take all rb files in domain, and given a path of domain/common/foo/foo_class.rb, will consider
+;; that to be Foo::FooClass. It will also create a function railgun-find-domain which will have a prompt of
+;; "Entity: ".
+
+;; the default case is simpler, for example, a presenters directory
+
+;; (presenter . "app/presenters/")
+;; (railgun-define-finder presenter)
+
+;; to reset the class paths to the default (for example, when switching projects) use railgun-reset-class-paths
+;; to clear caches (for example, when adding a new file) use railgun-clear-caches
 
 (require 'inflections)
+(require 'cl)
 
-;; finders
+;;; config
+
+(defvar railgun-entity 'domain
+  "entity type to be used in railgun.
+   change this if you have your models as another type")
+
+;;; finders
 
 (defun railgun-find-blueprint ()
   (interactive)
-  (let* ((root (eproject-root))
-         (target (railgun-prompt-for-resource "Blueprint for"))
-         (search (concat "^" target ".blueprint")))
-    (find-file (concat root "test/blueprints.rb"))
-    (or (re-search-forward search nil t)
-        (re-search-backward search nil t))))
+  (let* ((class (railgun-prompt "Blueprint for" (railgun-entities)))
+         (search (concat "^" class ".blueprint")))
+
+    (when (railgun-find-file-if-it-exists "test/blueprints.rb")
+      (or (re-search-forward search nil t)
+        (re-search-backward search nil t)))))
 
 (defun railgun-find-factory ()
   (interactive)
-  (let* ((root (eproject-root))
-         (target (railgun-prompt-for-resource "Factory for"))
-         (klass (concat "factory.*" target))
-         (sym (concat "factory +:" (railgun-table-name-for-model target))))
-    (find-file (concat root "spec/factories.rb"))
-    (or (or (re-search-forward klass nil t)
-            (re-search-backward klass nil t))
-        (or (re-search-forward sym nil t)
-            (re-search-backward sym nil t)))))
+  (let* ((file (railgun-prompt-for-file "Factory for" (railgun-entities)))
+         (class (concat "factory.*" (car file)))
+         (sym (concat "factory +:" (railgun-table-for-file file))))
+
+    (when (railgun-find-file-if-it-exists "spec/factories.rb")
+      (or (or (re-search-forward class nil t)
+              (re-search-backward class nil t))
+          (or (re-search-forward sym nil t)
+              (re-search-backward sym nil t))))))
 
 (defun railgun-find-schema ()
   (interactive)
-  (let ((name (railgun-table-name-for-model (railgun-prompt-for-resource "Schema of")))
-        (root (eproject-root)))
+  (let ((name (railgun-prompt-for-table-name "Schema for")))
 
     (cond ((railgun-find-file-if-it-exists "db/schema.rb")
            (railgun-search-in-file (concat "create_table \"" name "\"")))
@@ -63,7 +101,7 @@
           ((railgun-find-file-if-it-exists "db/structure.sql")
            (railgun-search-in-file (concat "CREATE TABLE " name " ")))
 
-          (t (message "run rake db:migrate first")))))
+          (t (message "can't find schema file, run rake db:migrate first")))))
 
 
 (defun railgun-search-in-file (re)
@@ -72,250 +110,194 @@
   (message (concat "looking for " name)))
 
 (defun railgun-find-file-if-it-exists (file)
-  (let ((path (concat root file)))
+  (let ((path (railgun-path file)))
     (if (file-exists-p path)
         (find-file path))))
 
-(defun railgun-find-view ()
+;;; tests
+
+(defun railgun-find-spec ()
   (interactive)
-  (ido-find-file-in-dir
-   (pluralize-string (railgun-view-dir-for-controller (railgun-prompt-for-controller "View for")))))
+  (let* ((target (concat (railgun-current-class) "Spec"))
+         (path (railgun-file-path (assoc target (railgun-files)))))
+    (and path (find-file path))))
 
-(defun railgun-find-model ()
+(defun railgun-find-test ()
   (interactive)
-  (find-file (railgun-file-name-for-model (railgun-prompt-for-model))))
+  (let* ((target (concat (railgun-current-class) "Test"))
+         (path (railgun-file-path (assoc target (railgun-files)))))
+    (and path (find-file path))))
 
-(defun railgun-find-controller ()
+(defun railgun-find-implementation ()
   (interactive)
-  (find-file (railgun-file-name-for-controller (railgun-prompt-for-controller))))
+  (let* ((target (replace-regexp-in-string "\\(Spec\\|Test\\)$" "" (railgun-current-class)))
+         (path (railgun-file-path (assoc target (railgun-files)))))
+    (and path (find-file path))))
 
-(defun railgun-find-lib ()
+(defun railgun-find-spec-or-test ()
   (interactive)
-  (find-file (railgun-file-name-for-lib (railgun-prompt-for-lib))))
+  (or (railgun-find-spec)
+      (railgun-find-test)
+      (message "could not find spec or test for current file")))
 
-(defun railgun-find-presenter ()
+(defun railgun-toggle-test-and-implmentation ()
   (interactive)
-  (find-file (railgun-file-name-for-presenter (railgun-prompt-for-presenter))))
+  (let ((type (railgun-file-type (railgun-current-file-info))))
+    (if (or (eq 'spec type)
+            (eq 'unit-test type))
+        (railgun-find-implementation)
+      (railgun-find-spec-or-test))))
 
-(defun railgun-find-helper ()
+
+;;; define-finder
+
+(defmacro railgun-define-finder (type &optional prompt)
+  (let ((prompt (or prompt (capitalize (symbol-name type)))))
+    `(defun ,(intern (concat "railgun-find-" (symbol-name type))) ()
+       (interactive)
+       (let ((prompt (concat ,prompt ": "))
+             (list (railgun-filter-by-type (quote ,type))))
+         (find-file (railgun-prompt-for-path prompt list))))))
+
+(defun railgun-prompt-for-table-name (prompt)
+  (let ((file (railgun-prompt-for-file prompt (railgun-entities))))
+    (railgun-table-for-path (railgun-file-relative-path file))))
+
+(defun railgun-prompt-for-path (prompt list)
+  (railgun-file-path (railgun-prompt-for-file prompt list)))
+
+(defun railgun-prompt-for-file (prompt list)
+  (assoc (railgun-prompt prompt list) list))
+
+(defun railgun-find-path-in-list (class-name list)
+  (railgun-file-path (assoc class-name list)))
+
+(defun railgun-prompt-for (type prompt)
+  (railgun-prompt prompt (railgun-filter-by-type type)))
+
+(defun railgun-prompt (prompt list)
+  (ido-completing-read prompt list nil t))
+
+
+
+(railgun-define-finder model)
+(railgun-define-finder controller)
+(railgun-define-finder presenter)
+(railgun-define-finder helper)
+(railgun-define-finder domain "Entity")
+(railgun-define-finder lib)
+
+
+;;; parsing
+
+(defvar railgun--default-class-paths
+  '((model      . "app/models/")
+    (controller . "app/controllers/")
+    (presenter  . "app/presenters/")
+    (helper     . "app/helpers/")
+    (domain     . ("domain/" . "domain/[a-zA-Z0-9_]+/"))
+    (lib        . "lib/")
+    (unit-test  . "test/unit/")
+    (func-test  . "test/functional/")
+    (spec       . ("spec/" . "spec/\\(domain/[a-zA-Z0-9_]+/\\|[a-zA-Z0-9_]+/\\)"))))
+
+(defvar railgun--class-paths (copy-list railgun--default-class-paths))
+
+(defun railgun-add-class-path (path)
+  (push path railgun--class-paths))
+
+(defun railgun-reset-class-paths ()
+  (railgun-clear-caches)
+  (setq railgun--class-paths (copy-list railgun--default-class-paths)))
+
+(defun railgun-file-types ()
+  (mapcar 'car railgun--class-paths))
+
+(defun railgun-search-path (type)
+  (let ((path (cdr (assoc type railgun--class-paths))))
+    (if (listp path) (car path) path)))
+
+(defun railgun-base-regexp (type)
+  (let ((path (cdr (assoc type railgun--class-paths))))
+    (if (listp path) (cdr path) path)))
+
+(defun railgun-relative-path (type path)
+  (let ((replace (railgun-path (railgun-base-regexp type))))
+    (replace-regexp-in-string replace "" path)))
+
+(defun railgun-class-for-path (path)
+  (let* ((chopped (replace-regexp-in-string ".rb$" "" path))
+         (moduled (replace-regexp-in-string "/" "::" chopped))
+         (capitalized (capitalize moduled)))
+    (replace-regexp-in-string "_" "" capitalized)))
+
+(defun railgun-table-for-file (file)
+  (railgun-table-for-path (railgun-file-relative-path file)))
+
+(defun railgun-table-for-path (path)
+  (let* ((chopped (replace-regexp-in-string ".rb$" "" path))
+         (moduled (replace-regexp-in-string "/" "_" chopped)))
+    (pluralize-string moduled)))
+
+;;; railgun-files
+
+(defun railgun-debug--message-files ()
   (interactive)
-  (find-file (railgun-file-name-for-helper (railgun-prompt-for-helper))))
-
-(defun railgun-find-domain ()
-  (interactive)
-  (find-file (railgun-file-name-for-domain (railgun-prompt-for-domain))))
-
-;;; Prompts
-
-(defun railgun-prompt-for-resource (prompt)
-  (let ((model (railgun-class-from-file-name (buffer-file-name))))
-    (railgun-prompt prompt (railgun-models) (if (is-railgun-model-p) model))))
-
-(defun railgun-prompt-for-model ()
-  (railgun-prompt "Model" (railgun-models)))
-
-(defun railgun-prompt-for-controller (&optional prompt)
-  (let ((prompt (or prompt "Controller")))
-    (railgun-prompt prompt (railgun-controllers))))
-
-(defun railgun-prompt-for-presenter ()
-  (railgun-prompt "Presenter" (railgun-presenters)))
-
-(defun railgun-prompt-for-lib ()
-  (railgun-prompt "Library" (railgun-libs)))
-
-(defun railgun-prompt-for-helper ()
-  (railgun-prompt "Helper" (railgun-helpers)))
-
-(defun railgun-prompt-for-domain ()
-  (railgun-prompt "Entity" (railgun-domain)))
-
-(defun railgun-prompt (prompt list &optional initial-value)
-  (let ((input (ido-completing-read (concat prompt ": ") list nil t initial-value)))
-    (if (string= "" input) model input)))
-
-;; resources
+  (railgun-clear-caches)
+  (print (railgun-files)))
 
 (defun railgun-clear-caches ()
   (interactive)
-  (setq railgun/models-alist nil)
-  (setq railgun/presenters-alist nil)
-  (setq railgun/helpers-alist nil)
-  (setq railgun/libs-alist nil)
-  (setq railgun/domain-alist nil)
-  (setq railgun/controllers-alist nil))
+  (setq railgun--files nil))
 
-(defun railgun-model-files ()
-  (all-files-under-dir-recursively (concat (eproject-root) "app/models") ".rb$"))
+(defvar railgun--files nil)
+(defun railgun-files ()
+  (if railgun--files railgun--files
+    (setq railgun--files (build-railgun-files))))
 
-(defvar railgun/models-alist nil)
-(defun railgun-models-alist ()
-  (or railgun/models-alist
-      (setq railgun/model-alist (mapcar 'railgun-class-and-file-name
-                                        (railgun-model-files)))))
+(defun railgun-entities ()
+  (railgun-filter-by-type railgun-entity))
 
-(defun railgun-models ()
-  (mapcar 'car (railgun-models-alist)))
+(defun railgun-filter-by-type (type)
+  (delq nil
+        (mapcar (lambda (file)
+                  (and (eq type (railgun-file-type file)) file))
+                (railgun-files))))
 
-;; domain
+(defun build-railgun-files ()
+  (loop for type in (railgun-file-types)
+        append (mapcar 'railgun-build-file-info
+                       (all-files-under-dir-recursively (railgun-search-path type)))))
 
-(defun railgun-domain-files ()
-  (all-files-under-dir-recursively (concat (eproject-root) "domain/") ".rb$"))
+(defun railgun-current-file-info ()
+  (railgun-find-file-for-path (buffer-file-name)))
 
-(defvar railgun/domain-alist nil)
-(defun railgun-domain-alist ()
-  (or railgun/domain-alist
-      (setq railgun/model-alist (mapcar 'railgun-domain-class-and-file-name
-                                        (railgun-domain-files)))))
+(defun railgun-current-class ()
+  (car (railgun-current-file-info)))
 
-(defun railgun-domain-class-and-file-name (file)
-  (let ((class (railgun-class-from-file-name file)))
-    `(,(replace-regexp-in-string "^[a-zA-Z]+::[a-zA-Z]+::" "" class) . ,file)))
+(defun railgun-build-file-info (path)
+  (let* ((relative-path (railgun-relative-path type path))
+         (class-name (railgun-class-for-path relative-path)))
+    `(,class-name ,relative-path ,type ,path)))
 
-(defun railgun-domain ()
-  (mapcar 'car (railgun-domain-alist)))
+(defun railgun-relative-path-for-class (class)
+  (railgun-file-relative-path (railgun-file-for-class class)))
 
-; controllers
+(defun railgun-file-for-class (class)
+  (assoc class (railgun-files)))
 
-(defun railgun-controller-files ()
-  (all-files-under-dir-recursively (concat (eproject-root) "app/controllers") ".rb$"))
+(defun railgun-find-file-for-path (path)
+  (find-if '(lambda (info)
+              (string= path (railgun-file-path info)))
+           (railgun-files)))
 
-(defvar railgun/controllers-alist nil)
-(defun railgun-controllers-alist ()
-  (or railgun/controllers-alist
-      (setq railgun/controllers-alist (mapcar 'railgun-class-and-file-name
-                                        (railgun-controller-files)))))
+(defun railgun-file-relative-path (file) (cadr file))
+(defun railgun-file-type          (file) (caddr file))
+(defun railgun-file-path          (file) (cadddr file))
 
-(defun railgun-controllers ()
-  (mapcar 'car (railgun-controllers-alist)))
+;;; utils
 
-; libs
+(defun railgun-path (path)
+  (concat (railway-root) path))
 
-(defun railgun-lib-files ()
-  (all-files-under-dir-recursively (concat (eproject-root) "lib") ".rb$"))
-
-(defvar railgun/libs-alist nil)
-(defun railgun-libs-alist ()
-  (or railgun/libs-alist
-      (setq railgun/libs-alist (mapcar 'railgun-class-and-file-name
-                                        (railgun-lib-files)))))
-
-(defun railgun-libs ()
-  (mapcar 'car (railgun-libs-alist)))
-
-; presenters
-
-(defun railgun-presenter-files ()
-  (all-files-under-dir-recursively (concat (eproject-root) "app/presenters") ".rb$"))
-
-(defvar railgun/presenters-alist nil)
-(defun railgun-presenters-alist ()
-  (or railgun/presenters-alist
-      (setq railgun/presenters-alist (mapcar 'railgun-class-and-file-name
-                                        (railgun-presenter-files)))))
-
-(defun railgun-presenters ()
-  (mapcar 'car (railgun-presenters-alist)))
-
-; helpers
-
-(defun railgun-helper-files ()
-  (all-files-under-dir-recursively (concat (eproject-root) "app/helpers") ".rb$"))
-
-(defvar railgun/helpers-alist nil)
-(defun railgun-helpers-alist ()
-  (or railgun/helpers-alist
-      (setq railgun/helpers-alist (mapcar 'railgun-class-and-file-name
-                                          (railgun-helper-files)))))
-
-(defun railgun-helpers ()
-  (mapcar 'car (railgun-helpers-alist)))
-
-;; parse entities
-
-(defun railgun-table-name-for-model (model)
-  (pluralize-string (railgun-table-name-from-file-name
-                     (railgun-file-name-for-model model))))
-
-(defun railgun-file-name-for-model (model)
-  (cdr (assoc model (railgun-models-alist))))
-
-(defun railgun-file-name-for-controller (controller)
-  (cdr (assoc controller (railgun-controllers-alist))))
-
-(defun railgun-file-name-for-presenter (presenter)
-  (cdr (assoc presenter (railgun-presenters-alist))))
-
-(defun railgun-file-name-for-lib (lib)
-  (cdr (assoc lib (railgun-libs-alist))))
-
-(defun railgun-file-name-for-helper (helper)
-  (cdr (assoc helper (railgun-helpers-alist))))
-
-(defun railgun-file-name-for-domain (domain)
-  (cdr (assoc domain (railgun-domain-alist))))
-
-;; predicates
-
-
-(defun is-railgun-model-p ()
-  (let ((model-regexp (concat "^" (eproject-root) "app/models")))
-    (string-match model-regexp (buffer-file-name))))
-
-(defun railgun-model-p (file-name)
-  (string-match "app/models" file-name))
-
-(defun railgun-controller-p (file-name)
-  (string-match "app/controllers" file-name))
-
-(defun railgun-presenter-p (file-name)
-  (string-match "app/presenters" file-name))
-
-(defun railgun-lib-p (file-name)
-  (string-match "\/lib\/" file-name))
-
-(defun railgun-helper-p (file-name)
-  (string-match "app/helpers" file-name))
-
-(defun railgun-domain-p (file-name)
-  (string-match "domain" file-name))
-
-;; parsing
-
-
-(defun railgun-class-and-file-name (file-name)
-  (let ((class (railgun-class-from-file-name file-name)))
-    `(,class . ,file-name)))
-
-(defun railgun-class-and-table-name (file-name)
-  (let ((class (railgun-class-from-file-name file-name))
-        (table (railgun-table-name-from-file-name file-name)))
-    `(,class . ,table)))
-
-(defun railgun-table-name-from-file-name (file-name &optional ns)
-  "get an underscored version of the current models name, passing in what to use as namespace delimiter"
-  (let* ((delim-with (or ns "_"))
-         (dir (concat (eproject-root) (railgun-dir-name-for-file-name file-name)))
-         (resource (replace-regexp-in-string dir "" file-name))
-         (filename (replace-regexp-in-string "/" delim-with resource)))
-    (replace-regexp-in-string ".rb$" "" filename)))
-
-
-(defun railgun-view-dir-for-controller (controller)
-  (let* ((file-name (railgun-file-name-for-controller controller))
-         (dir (railgun-table-name-from-file-name file-name "/"))
-         (view-dir (replace-regexp-in-string "_controller$" "" dir)))
-    (concat (eproject-root) "app/views/" view-dir)))
-
-(defun railgun-dir-name-for-file-name (file-name)
-  (cond ((railgun-model-p file-name) "app/models/" )
-        ((railgun-controller-p file-name) "app/controllers/" )
-        ((railgun-lib-p file-name) "lib/" )
-        ((railgun-helper-p file-name) "app/helpers/" )
-        ((railgun-presenter-p file-name) "app/presenters/" )))
-
-(defun railgun-class-from-file-name (file-name)
-  (let* ((table-name (railgun-table-name-from-file-name file-name "::"))
-         (capitalized (capitalize table-name)))
-    (replace-regexp-in-string "_" "" capitalized)))
 (provide 'railgun)
