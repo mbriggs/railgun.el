@@ -313,7 +313,7 @@
 (defun build-railgun-files ()
   (loop for type in (railgun-file-types)
         append (mapcar 'railgun-build-file-info
-                       (all-files-under-dir-recursively (railgun-search-path type)))))
+                       (all-files-under-dir-recursively (railgun-path (railgun-search-path type))))))
 
 (defun railgun-current-file-info ()
   (railgun-find-file-for-path (buffer-file-name)))
