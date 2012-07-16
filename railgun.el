@@ -149,7 +149,28 @@
 (defun railgun-create-spec ()
   (interactive)
   (let* ((file (railgun-current-file-info))
-         (path (railgun-path (concat "spec/" (railgun-file-relative-path file)))))
+         (search-path (railgun-search-path (railgun-file-type file)))
+         (spec-path (replace-regexp-in-string "app/assets/" "" search-path))
+         (path (railgun-path (concat "spec/" spec-path (railgun-file-relative-path file)))))
+    (find-file (replace-regexp-in-string "\.\\([a-z]+\\)$" "_spec.\\1" path))))
+
+(defun railgun-build-test-path (file)
+  (let ((relative-path (replace-regexp-in-string ".rb$" "_test.rb" (railgun-file-relative-path file)))
+        (type (railgun-file-type file))
+        (base "test/"))
+
+    (find-file (cond ((eq type 'controller)
+                      (concat base "functional/" relative-path))
+                     ((eq type 'helper)
+                      (concat base "unit/helper" relative-path))
+                     (t
+                      (concat base "unit/" relative-path))))))
+
+(defun railgun-create-test ()
+  (interactive)
+  (let* ((file (railgun-current-file-info))
+         (search-path (railgun-search-path (railgun-file-type file)))
+         (path (railgun-path (railgun-build-test-path (railgun-build-test-path file)))))
     (find-file (replace-regexp-in-string "\.\\([a-z]+\\)$" "_spec.\\1" path))))
 
 (defun railgun-find-implementation ()
@@ -222,7 +243,7 @@
     (js         . "app/assets/javascripts/")
     (domain     . ("domain/" . "domain/[a-zA-Z0-9_]+/"))
     (lib        . "lib/")
-    (unit-test  . "test/unit/\\(helper/\\)?")
+    (unit-test  . ("test/unit/" . "test/unit/\\(helper/\\)?"))
     (func-test  . "test/functional/")
     (spec       . ("spec/" . "spec/\\(domain/[a-zA-Z0-9_]+/\\|[a-zA-Z0-9_]+/\\)"))))
 
@@ -300,7 +321,7 @@
 (defun build-railgun-files ()
   (loop for type in (railgun-file-types)
         append (mapcar 'railgun-build-file-info
-                       (all-files-under-dir-recursively (railgun-search-path type)))))
+                       (all-files-under-dir-recursively (railgun-path (railgun-search-path type))))))
 
 (defun railgun-current-file-info ()
   (railgun-find-file-for-path (buffer-file-name)))
