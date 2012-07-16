@@ -124,6 +124,14 @@
   (interactive)
   (find-file (railgun-prompt-for-path "Class: " (railgun-files))))
 
+(defun railgun-find-view ()
+  (interactive)
+  (let* ((input (railgun-prompt "View for: " (railgun-filter-by-type 'controller)))
+         (path (railgun-file-relative-path (railgun-file-for-class input)))
+         (controller-name (replace-regexp-in-string "_controller.rb$" "" path))
+         (view-dir (railgun-path (concat "app/views/" controller-name))))
+    (find-file (ido-read-file-name "View: " view-dir)))
+
 ;;; tests
 
 (defun railgun-find-spec ()
