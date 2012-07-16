@@ -235,7 +235,7 @@
     (js         . "app/assets/javascripts/")
     (domain     . ("domain/" . "domain/[a-zA-Z0-9_]+/"))
     (lib        . "lib/")
-    (unit-test  . "test/unit/\\(helper/\\)?")
+    (unit-test  . ("test/unit/" . "test/unit/\\(helper/\\)?"))
     (func-test  . "test/functional/")
     (spec       . ("spec/" . "spec/\\(domain/[a-zA-Z0-9_]+/\\|[a-zA-Z0-9_]+/\\)"))))
 
