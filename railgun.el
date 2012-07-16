@@ -120,6 +120,10 @@
         (list (railgun-filter-by-type railgun-entity)))
     (find-file (railgun-prompt-for-path (concat prompt ": ") list))))
 
+(defun railgun-find-class ()
+  (interactive)
+  (find-file (railgun-prompt-for-path "Class: " (railgun-files))))
+
 ;;; tests
 
 (defun railgun-find-spec ()
@@ -134,6 +138,12 @@
          (path (railgun-file-path (assoc target (railgun-files)))))
     (and path (find-file path))))
 
+(defun railgun-create-spec ()
+  (interactive)
+  (let* ((file (railgun-current-file-info))
+         (path (railgun-path (concat "spec/" (railgun-file-relative-path file)))))
+    (find-file (replace-regexp-in-string "\.\\([a-z]+\\)$" "_spec.\\1" path))))
+
 (defun railgun-find-implementation ()
   (interactive)
   (let* ((target (replace-regexp-in-string "\\(Spec\\|Test\\)$" "" (railgun-current-class)))
@@ -146,7 +156,7 @@
       (railgun-find-test)
       (message "could not find spec or test for current file")))
 
-(defun railgun-toggle-test-and-implmentation ()
+(defun railgun-toggle-test-and-implementation ()
   (interactive)
   (let ((type (railgun-file-type (railgun-current-file-info))))
     (if (or (eq 'spec type)
@@ -201,9 +211,10 @@
     (controller . "app/controllers/")
     (presenter  . "app/presenters/")
     (helper     . "app/helpers/")
+    (js         . "app/assets/javascripts/")
     (domain     . ("domain/" . "domain/[a-zA-Z0-9_]+/"))
     (lib        . "lib/")
-    (unit-test  . "test/unit/")
+    (unit-test  . "test/unit/\\(helper/\\)?")
     (func-test  . "test/functional/")
     (spec       . ("spec/" . "spec/\\(domain/[a-zA-Z0-9_]+/\\|[a-zA-Z0-9_]+/\\)"))))
 
@@ -213,6 +224,7 @@
   (push path railgun--class-paths))
 
 (defun railgun-reset-class-paths ()
+  (interactive)
   (railgun-clear-caches)
   (setq railgun--class-paths (copy-list railgun--default-class-paths)))
 
@@ -234,8 +246,15 @@
 (defun railgun-class-for-path (path)
   (let* ((chopped (replace-regexp-in-string ".rb$" "" path))
          (moduled (replace-regexp-in-string "/" "::" chopped))
-         (capitalized (capitalize moduled)))
-    (replace-regexp-in-string "_" "" capitalized)))
+         (capitalized (capitalize moduled))
+         (constant (replace-regexp-in-string "_" "" capitalized)))
+    (if (string-match ".Js$" constant)
+        (railgun-js-ify constant)
+      constant)))
+
+(defun railgun-js-ify (class-name)
+  (let ((class (replace-regexp-in-string ".Js$" "" class-name)))
+    (concat "javascript|" class)))
 
 (defun railgun-table-for-file (file)
   (railgun-table-for-path (railgun-file-relative-path file)))
