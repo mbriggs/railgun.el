@@ -192,7 +192,7 @@
   (railgun-prompt prompt (railgun-filter-by-type type)))
 
 (defun railgun-prompt (prompt list)
-  (ido-completing-read prompt list nil t))
+  (ido-completing-read prompt (mapcar 'car list) nil t))
 
 
 
