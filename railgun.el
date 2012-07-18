@@ -134,6 +134,14 @@
 
 ;;; tests
 
+(defun railgun-spec? ()
+  (eq 'spec (railgun-file-type (railgun-current-file-info))))
+
+(defun railgun-test? ()
+  (let ((type (railgun-file-type (railgun-current-file-info))))
+    (or (eq 'unit-test type)
+        (eq 'func-test))))
+
 (defun railgun-find-spec ()
   (interactive)
   (let* ((target (concat (railgun-current-class) "Spec"))
