@@ -130,7 +130,7 @@
          (path (railgun-file-relative-path (railgun-file-for-class input)))
          (controller-name (replace-regexp-in-string "_controller.rb$" "" path))
          (view-dir (railgun-path (concat "app/views/" controller-name))))
-    (find-file (ido-read-file-name "View: " view-dir)))
+    (find-file (ido-read-file-name "View: " view-dir))))
 
 ;;; tests
 
