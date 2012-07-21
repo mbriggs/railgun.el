@@ -231,8 +231,6 @@
 (defun railgun-prompt (prompt list)
   (ido-completing-read prompt (mapcar 'car list) nil t))
 
-
-
 (railgun-define-finder model)
 (railgun-define-finder controller)
 (railgun-define-finder presenter)
@@ -240,6 +238,22 @@
 (railgun-define-finder domain "Entity")
 (railgun-define-finder lib)
 
+;;; creating
+
+(defmacro railgun-define-creator (type &optional suffix initial-template-fn)
+  (let ((type-name (capitalize (symbol-name type)))
+        (name (intern (concat "railgun-create-" (symbol-name type))))
+        (search-path (railgun-search-path type))
+        (template (or initial-template-fn (lambda (input)))))
+    `(defun ,name ()
+       (interactive)
+       (let ((input (read-from-minibuffer (concat "Create " ,type-name ": "))))
+         (find-file (concat ,search-path "/" input ,suffix))
+         (funcall ,template input)))))
+
+(railgun-define-creator helper "_helper.rb")
+(railgun-define-creator model ".rb")
+(railgun-define-creator controller "_controller.rb")
 
 ;;; parsing
 
