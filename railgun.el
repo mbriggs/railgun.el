@@ -20,15 +20,18 @@
 ;; The goal of this project is to provide easy ways to get to the places you
 ;; want to be. The built in finders are
 
-;; railgun-find-libs        - show a list of libs
-;; railgun-find-views       - show a list of views
-;; railgun-find-controller  - jump to a given controller
-;; railgun-find-presenter   - jump to a given presenter
-;; railgun-find-helper      - jump to a given helper
-;; railgun-find-model       - jump to a given model
-;; railgun-find-schema      - find model entry in schema.rb file
-;; railgun-find-blueprint   - find the entry in blueprints.rb for a given model (if you use machinist)
-;; railgun-find-factory     - find the entry in factories.rb for a given model (if you use factory_girl)
+;; railgun-find-libs          - show a list of libs
+;; railgun-find-views         - show a list of views
+;; railgun-find-controller    - jump to a given controller
+;; railgun-find-presenter     - jump to a given presenter
+;; railgun-find-helper        - jump to a given helper
+;; railgun-find-model         - jump to a given model
+;; railgun-find-schema        - find model entry in schema.rb file
+;; railgun-find-blueprint     - find the entry in blueprints.rb for a given model (if you use machinist)
+;; railgun-find-factory       - find the entry in factories.rb for a given model (if you use factory_girl)
+;; railgun-create-model       - create a model with a given name (in wide case)
+;; railgun-create-helper      - create a helper with a given name (in wide case)
+;; railgun-create-controoler  - create a controller with a given name (in wide case)
 
 ;;; Customizing railgun:
 
@@ -251,9 +254,27 @@
          (find-file (concat ,search-path "/" input ,suffix))
          (funcall ,template input)))))
 
-(railgun-define-creator helper "_helper.rb")
-(railgun-define-creator model ".rb")
-(railgun-define-creator controller "_controller.rb")
+(railgun-define-creator helper "_helper.rb" 'railgun-helper-template)
+(railgun-define-creator model ".rb" 'railgun-model-template)
+(railgun-define-creator controller "_controller.rb" 'railgun-controller-helper)
+
+(defun railgun-helper-template (type-name)
+  (let ((name (railgun-constantize type-name)))
+    (insert (concat "class " name "Helper"))
+    (newline)
+    (insert "end")))
+
+(defun railgun-model-template (type-name)
+  (let ((name (railgun-constantize type-name)))
+    (insert (concat "class " name " < ActiveRecord::Base"))
+    (newline)
+    (insert "end")))
+
+(defun railgun-controller-template (type-name)
+  (let ((name (railgun-constantize type-name)))
+    (insert (concat "class " name "Controller < ApplicationController"))
+    (newline)
+    (insert "end")))
 
 ;;; parsing
 
@@ -315,6 +336,7 @@
          (moduled (replace-regexp-in-string "/" "_" chopped)))
     (pluralize-string moduled)))
 
+
 ;;; railgun-files
 
 (defun railgun-debug--message-files ()
@@ -375,5 +397,8 @@
 
 (defun railgun-path (path)
   (concat (railway-root) path))
+
+(defun railgun-constantize (name)
+  (replace-regexp-in-string "_" "" (capitalize name)))
 
 (provide 'railgun)
