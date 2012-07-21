@@ -31,7 +31,7 @@
 ;; railgun-find-factory       - find the entry in factories.rb for a given model (if you use factory_girl)
 ;; railgun-create-model       - create a model with a given name (in wide case)
 ;; railgun-create-helper      - create a helper with a given name (in wide case)
-;; railgun-create-controoler  - create a controller with a given name (in wide case)
+;; railgun-create-controller  - create a controller with a given name (in wide case)
 
 ;;; Customizing railgun:
 
