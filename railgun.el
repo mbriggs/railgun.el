@@ -234,13 +234,6 @@
 (defun railgun-prompt (prompt list)
   (ido-completing-read prompt (mapcar 'car list) nil t))
 
-(railgun-define-finder model)
-(railgun-define-finder controller)
-(railgun-define-finder presenter)
-(railgun-define-finder helper)
-(railgun-define-finder domain "Entity")
-(railgun-define-finder lib)
-
 ;;; creating
 
 (defmacro railgun-define-creator (type &optional suffix initial-template-fn)
@@ -253,10 +246,6 @@
        (let ((input (read-from-minibuffer (concat "Create " ,type-name ": "))))
          (find-file (concat ,search-path "/" input ,suffix))
          (funcall ,template input)))))
-
-(railgun-define-creator helper "_helper.rb" 'railgun-helper-template)
-(railgun-define-creator model ".rb" 'railgun-model-template)
-(railgun-define-creator controller "_controller.rb" 'railgun-controller-helper)
 
 (defun railgun-helper-template (type-name)
   (let ((name (railgun-constantize type-name)))
@@ -400,5 +389,18 @@
 
 (defun railgun-constantize (name)
   (replace-regexp-in-string "_" "" (capitalize name)))
+
+;;; defines
+
+(railgun-define-creator helper "_helper.rb" 'railgun-helper-template)
+(railgun-define-creator model ".rb" 'railgun-model-template)
+(railgun-define-creator controller "_controller.rb" 'railgun-controller-helper)
+
+(railgun-define-finder model)
+(railgun-define-finder controller)
+(railgun-define-finder presenter)
+(railgun-define-finder helper)
+(railgun-define-finder domain "Entity")
+(railgun-define-finder lib)
 
 (provide 'railgun)
