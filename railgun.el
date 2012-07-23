@@ -26,12 +26,14 @@
 ;; railgun-find-presenter     - jump to a given presenter
 ;; railgun-find-helper        - jump to a given helper
 ;; railgun-find-model         - jump to a given model
-;; railgun-find-schema        - find model entry in schema.rb file
+;; railgun-find-schema        - find model entry in schema.rb (or structure.sql) file
 ;; railgun-find-blueprint     - find the entry in blueprints.rb for a given model (if you use machinist)
 ;; railgun-find-factory       - find the entry in factories.rb for a given model (if you use factory_girl)
 ;; railgun-create-model       - create a model with a given name (in wide case)
 ;; railgun-create-helper      - create a helper with a given name (in wide case)
 ;; railgun-create-controller  - create a controller with a given name (in wide case)
+;; railgun-create-spec        - create a spec for the current file
+;; railgun-create-test        - create a test for the current file
 
 ;;; Customizing railgun:
 
@@ -181,7 +183,7 @@
   (interactive)
   (let* ((file (railgun-current-file-info))
          (search-path (railgun-search-path (railgun-file-type file)))
-         (path (railgun-path (railgun-build-test-path (railgun-build-test-path file)))))
+         (path (railgun-path (railgun-build-test-path file))))
     (find-file (replace-regexp-in-string "\.\\([a-z]+\\)$" "_spec.\\1" path))))
 
 (defun railgun-find-implementation ()
