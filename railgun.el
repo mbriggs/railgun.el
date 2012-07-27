@@ -249,9 +249,10 @@
        (interactive)
        (let ((input (read-from-minibuffer (concat "Create " ,type-name ": "))))
          (find-file (concat ,search-path "/" input ,suffix))
-         (funcall ,template input)
-         (save-buffer)
-         (railgun-clear-caches)))))
+         (unless (string= (buffer-string) "")
+           (funcall ,template input)
+           (save-buffer)
+           (railgun-clear-caches))))))
 
 (defun railgun-helper-template (type-name)
   (let ((name (railgun-constantize type-name)))
@@ -401,6 +402,8 @@
 (railgun-define-creator helper "_helper.rb" 'railgun-helper-template)
 (railgun-define-creator model ".rb" 'railgun-model-template)
 (railgun-define-creator controller "_controller.rb" 'railgun-controller-helper)
+(railgun-define-creator javascript ".js")
+(railgun-define-creator stylesheet ".css.sass")
 
 (railgun-define-finder model)
 (railgun-define-finder controller)
