@@ -172,19 +172,17 @@
         (type (railgun-file-type file))
         (base "test/"))
 
-    (find-file (cond ((eq type 'controller)
-                      (concat base "functional/" relative-path))
-                     ((eq type 'helper)
-                      (concat base "unit/helper" relative-path))
-                     (t
-                      (concat base "unit/" relative-path))))))
+    (railgun-path (cond ((eq type 'controller)
+                         (concat base "functional/" relative-path))
+                        ((eq type 'helper)
+                         (concat base "unit/helper" relative-path))
+                        (t
+                         (concat base "unit/" relative-path))))))
 
 (defun railgun-create-test ()
   (interactive)
-  (let* ((file (railgun-current-file-info))
-         (search-path (railgun-search-path (railgun-file-type file)))
-         (path (railgun-path (railgun-build-test-path file))))
-    (find-file (replace-regexp-in-string "\.\\([a-z]+\\)$" "_spec.\\1" path))))
+  (let ((path (railgun-build-test-path (railgun-current-file-info))))
+    (find-file path)))
 
 (defun railgun-find-implementation ()
   (interactive)
