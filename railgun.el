@@ -163,7 +163,7 @@
   (interactive)
   (let* ((file (railgun-current-file-info))
          (search-path (railgun-search-path (railgun-file-type file)))
-         (spec-path (replace-regexp-in-string "app/assets/" "" search-path))
+         (spec-path (replace-regexp-in-string "app/\\(assets/\\)?" "" search-path))
          (path (railgun-path (concat "spec/" spec-path (railgun-file-relative-path file)))))
     (find-file (replace-regexp-in-string "\.\\([a-z]+\\)$" "_spec.\\1" path))))
 
