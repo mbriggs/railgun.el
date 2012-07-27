@@ -165,7 +165,9 @@
          (search-path (railgun-search-path (railgun-file-type file)))
          (spec-path (replace-regexp-in-string "app/\\(assets/\\)?" "" search-path))
          (path (railgun-path (concat "spec/" spec-path (railgun-file-relative-path file)))))
-    (find-file (replace-regexp-in-string "\.\\([a-z]+\\)$" "_spec.\\1" path))))
+    (find-file (replace-regexp-in-string "\.\\([a-z]+\\)$" "_spec.\\1" path))
+    (save-buffer)
+    (railgun-clear-caches)))
 
 (defun railgun-build-test-path (file)
   (let ((relative-path (replace-regexp-in-string ".rb$" "_test.rb" (railgun-file-relative-path file)))
@@ -182,7 +184,9 @@
 (defun railgun-create-test ()
   (interactive)
   (let ((path (railgun-build-test-path (railgun-current-file-info))))
-    (find-file path)))
+    (find-file path)
+    (save-buffer)
+    (railgun-clear-caches)))
 
 (defun railgun-find-implementation ()
   (interactive)
@@ -245,7 +249,9 @@
        (interactive)
        (let ((input (read-from-minibuffer (concat "Create " ,type-name ": "))))
          (find-file (concat ,search-path "/" input ,suffix))
-         (funcall ,template input)))))
+         (funcall ,template input)
+         (save-buffer)
+         (railgun-clear-caches)))))
 
 (defun railgun-helper-template (type-name)
   (let ((name (railgun-constantize type-name)))
