@@ -147,6 +147,20 @@
     (or (eq 'unit-test type)
         (eq 'func-test))))
 
+(defun railgun-file-name-postfix (file-name postfix)
+  (replace-regexp-in-string "^\\(.+\\)\\.\\([a-z]+\\)$"
+                            (concat "\\1" postfix ".\\2")
+                            file))
+
+(defun railgun-wide-find-spec-or-test ()
+  (interactive)
+  (let* ((file (railgun-file-name-for-path (buffer-file-name)))
+         (spec-file (railgun-file-name-postfix file "_spec"))
+         (test-file (railgun-file-name-postfix file "_test")))
+    (print (append (railgun-find-relative-paths-for-file-name spec-file)
+                   (railgun-find-relative-paths-for-file-name test-file)))))
+
+
 (defun railgun-find-spec ()
   (interactive)
   (let* ((target (concat (railgun-current-class) "Spec"))
@@ -196,9 +210,9 @@
 
 (defun railgun-find-spec-or-test ()
   (interactive)
-  (or (railgun-find-spec)
-      (railgun-find-test)
-      (message "could not find spec or test for current file")))
+  (or (or (railgun-find-spec)
+          (railgun-find-test))
+      (railgun-wide-find-spec-or-test)))
 
 (defun railgun-toggle-test-and-implementation ()
   (interactive)
@@ -359,6 +373,17 @@
                   (and (eq type (railgun-file-type file)) file))
                 (railgun-files))))
 
+(defun railgun-filter-by-file-name (file-name)
+  (delq nil
+        (mapcar (lambda (file)
+                  (and (string= file-name (railgun-file-name file))
+                       file))
+                (railgun-files))))
+
+(defun railgun-find-relative-paths-for-file-name (file-name)
+  (let ((files (railgun-filter-by-file-name file-name)))
+    (mapcar 'railgun-file-relative-path files)))
+
 (defun build-railgun-files ()
   (loop for type in (railgun-file-types)
         append (mapcar 'railgun-build-file-info
@@ -372,8 +397,12 @@
 
 (defun railgun-build-file-info (path)
   (let* ((relative-path (railgun-relative-path type path))
-         (class-name (railgun-class-for-path relative-path)))
-    `(,class-name ,relative-path ,type ,path)))
+         (class-name (railgun-class-for-path relative-path))
+         (file-name (railgun-file-name-for-path path)))
+    `(,class-name ,relative-path ,type ,path ,file-name)))
+
+(defun railgun-file-name-for-path (path)
+  (replace-regexp-in-string "^/\\(.*/\\)*" "" path))
 
 (defun railgun-relative-path-for-class (class)
   (railgun-file-relative-path (railgun-file-for-class class)))
@@ -389,8 +418,14 @@
 (defun railgun-file-relative-path (file) (cadr file))
 (defun railgun-file-type          (file) (caddr file))
 (defun railgun-file-path          (file) (cadddr file))
+(defun railgun-file-name          (file) (caddddr file))
 
 ;;; utils
+
+
+(defun caddddr (x)
+  "Return the `car' of the `cdr' of the `cdr' of the `cdr' of the `cdr' of X."
+  (car (cdr (cdr (cdr (cdr x))))))
 
 (defun railgun-path (path)
   (concat (railway-root) path))
