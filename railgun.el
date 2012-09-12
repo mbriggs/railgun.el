@@ -157,9 +157,24 @@
   (let* ((file (railgun-file-name-for-path (buffer-file-name)))
          (spec-file (railgun-file-name-postfix file "_spec"))
          (test-file (railgun-file-name-postfix file "_test")))
-    (print (append (railgun-find-relative-paths-for-file-name spec-file)
-                   (railgun-find-relative-paths-for-file-name test-file)))))
+    (railgun-goto-file-in-list "Spec/Tests: "
+                               (append (railgun-filter-by-file-name spec-file)
+                                       (railgun-filter-by-file-name test-file)))))
 
+(defun railgun-wide-find-implementation ()
+  (interactive)
+  (let* ((file (railgun-file-name-for-path (buffer-file-name)))
+         (impl (replace-regexp-in-string "\\(_test\\|_spec\\)"))
+         (files (railgun-filter-by-file-name impl)))
+    (railgun-goto-file-in-list "Implementation: " files)))
+
+(defun railgun-goto-file-in-list (prompt list)
+  (let ((len (length list))
+        (names (mapcar 'car list)))
+    (if (= len 0) (message "Could not find spec or test")
+      (find-file (railgun-file-path
+                  (if (= len 1) (car list)
+                    (assoc (ido-completing-read prompt names) list)))))))
 
 (defun railgun-find-spec ()
   (interactive)
@@ -204,9 +219,11 @@
 
 (defun railgun-find-implementation ()
   (interactive)
-  (let* ((target (replace-regexp-in-string "\\(Spec\\|Test\\)$" "" (railgun-current-class)))
-         (path (railgun-file-path (assoc target (railgun-files)))))
-    (and path (find-file path))))
+  (or (let* ((target (replace-regexp-in-string "\\(Spec\\|Test\\)$" "" (railgun-current-class)))
+             (path (railgun-file-path (assoc target (railgun-files)))))
+        (and path (find-file path)))
+
+      (railgun-wide-find-implementation)))
 
 (defun railgun-find-spec-or-test ()
   (interactive)
@@ -379,10 +396,6 @@
                   (and (string= file-name (railgun-file-name file))
                        file))
                 (railgun-files))))
-
-(defun railgun-find-relative-paths-for-file-name (file-name)
-  (let ((files (railgun-filter-by-file-name file-name)))
-    (mapcar 'railgun-file-relative-path files)))
 
 (defun build-railgun-files ()
   (loop for type in (railgun-file-types)
