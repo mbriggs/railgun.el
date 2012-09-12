@@ -312,7 +312,7 @@
     (helper     . "app/helpers/")
     (service    . ("app/services/" . "app/services/[a-zA-Z-0-9_]+/"))
     (js         . "app/assets/javascripts/")
-    (domain     . ("domain/" . "domain/[a-zA-Z0-9_]+/"))
+    (domain     . ("domain/" . "domain/\\([a-zA-Z0-9_]+/\\)?"))
     (lib        . "lib/")
     (unit-test  . ("test/unit/" . "test/unit/\\(helper/\\)?"))
     (func-test  . "test/functional/")
