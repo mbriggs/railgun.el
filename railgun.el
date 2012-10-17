@@ -66,6 +66,7 @@
 
 (require 'inflections)
 (require 'cl)
+(require 'eieio)
 
 ;;; config
 
