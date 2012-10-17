@@ -73,24 +73,26 @@
   "entity type to be used in railgun.
    change this if you have your models as another type")
 
-;;; finders
+(defvar rg-factory-file-path "spec/factories.rb")
+
+;;; find in files
 
 (defun rg-find-blueprint ()
   (interactive)
-  (let* ((class (rg-prompt "Blueprint for" (railgun-entities)))
+  (let* ((class (rg-prompt "Blueprint for" (rg-filter-by file-type rg-entity)))
          (search (concat "^" class ".blueprint")))
 
     (when (rg-find-file-if-it-exists "test/blueprints.rb")
       (or (re-search-forward search nil t)
-        (re-search-backward search nil t)))))
+          (re-search-backward search nil t)))))
 
 (defun rg-find-factory ()
   (interactive)
-  (let* ((file (rg-prompt-for-file "Factory for" (railgun-entities)))
+  (let* ((file (rg-prompt-for-file "Factory for" (rg-filter-by file-type rg-entity)))
          (class (concat "factory.*" (car file)))
          (sym (concat "factory +:" (rg-table-for-file file))))
 
-    (when (rg-find-file-if-it-exists "spec/factories.rb")
+    (when (rg-find-file-if-it-exists rg-factory-file-path)
       (or (or (re-search-forward class nil t)
               (re-search-backward class nil t))
           (or (re-search-forward sym nil t)
@@ -119,108 +121,40 @@
     (if (file-exists-p path)
         (find-file path))))
 
+;;; finders
+
 (defun rg-find-entity ()
   (interactive)
   (let ((prompt (capitalize (symbol-name rg-entity)))
-        (list (rg-filter-by-type railgun-entity)))
+        (list (rg-filter-by file-type rg-entity)))
     (find-file (rg-prompt-for-path (concat prompt ": ") list))))
 
 (defun rg-find-class ()
   (interactive)
-  (find-file (rg-prompt-for-path "Class: " (railgun-files))))
+  (find-file (rg-prompt-for-path "Class: " (rg-files))))
 
 (defun rg-find-view ()
   (interactive)
-  (let* ((input (rg-prompt "View for: " (railgun-filter-by-type 'controller)))
-         (path (rg-file-relative-path (railgun-file-for-class input)))
-         (controller-name (replace-regexp-in-string "_controller.rb$" "" path))
+  (let* ((input (rg-prompt "View for: " (rg-filter-by file-type 'controller)))
+         (path (slot-value (rg-file-for-class input) relative-path))
+         (controller-name (rg-remove "_controller.rb$" path))
          (view-dir (rg-path (concat "app/views/" controller-name))))
     (find-file (ido-read-file-name "View: " view-dir))))
 
 ;;; tests
 
-(defun rg-spec? ()
-  (eq 'spec (rg-file-type (railgun-current-file-info))))
-
-(defun rg-test? ()
-  (let ((type (rg-file-type (railgun-current-file-info))))
-    (or (eq 'unit-test type)
-        (eq 'func-test))))
-
-(defun rg-file-name-postfix (file-name postfix)
-  (replace-regexp-in-string "^\\(.+\\)\\.\\([a-z]+\\)$"
-                            (concat "\\1" postfix ".\\2")
-                            file))
-
-(defun rg-wide-find-spec-or-test ()
+(defun rg-toggle-test-and-implementation ()
   (interactive)
-  (let* ((file (rg-file-name-for-path (buffer-file-name)))
-         (spec-file (rg-file-name-postfix file "_spec"))
-         (test-file (rg-file-name-postfix file "_test")))
-    (rg-goto-file-in-list "Spec/Tests: "
-                               (append (rg-filter-by-file-name spec-file)
-                                       (rg-filter-by-file-name test-file)))))
-
-(defun rg-wide-find-implementation ()
-  (interactive)
-  (let* ((file (rg-file-name-for-path (buffer-file-name)))
-         (impl (replace-regexp-in-string "\\(_test\\|_spec\\)"))
-         (files (rg-filter-by-file-name impl)))
-    (rg-goto-file-in-list "Implementation: " files)))
-
-(defun rg-goto-file-in-list (prompt list)
-  (let ((len (length list))
-        (names (mapcar 'car list)))
-    (if (= len 0) (message "Could not find spec or test")
-      (find-file (rg-file-path
-                  (if (= len 1) (car list)
-                    (assoc (ido-completing-read prompt names) list)))))))
-
-(defun rg-find-spec ()
-  (interactive)
-  (let* ((target (concat (rg-current-class) "Spec"))
-         (path (rg-file-path (assoc target (railgun-files)))))
-    (and path (find-file path))))
-
-(defun rg-find-test ()
-  (interactive)
-  (let* ((target (concat (rg-current-class) "Test"))
-         (path (rg-file-path (assoc target (railgun-files)))))
-    (and path (find-file path))))
-
-(defun rg-create-spec ()
-  (interactive)
-  (let* ((file (rg-current-file-info))
-         (search-path (rg-search-path (railgun-file-type file)))
-         (spec-path (replace-regexp-in-string "app/\\(assets/\\)?" "" search-path))
-         (path (rg-path (concat "spec/" spec-path (railgun-file-relative-path file)))))
-    (find-file (replace-regexp-in-string "\.\\([a-z]+\\)$" "_spec.\\1" path))
-    (save-buffer)
-    (rg-clear-caches)))
-
-(defun rg-build-test-path (file)
-  (let ((relative-path (replace-regexp-in-string ".rb$" "_test.rb" (rg-file-relative-path file)))
-        (type (rg-file-type file))
-        (base "test/"))
-
-    (rg-path (cond ((eq type 'controller)
-                         (concat base "functional/" relative-path))
-                        ((eq type 'helper)
-                         (concat base "unit/helper" relative-path))
-                        (t
-                         (concat base "unit/" relative-path))))))
-
-(defun rg-create-test ()
-  (interactive)
-  (let ((path (rg-build-test-path (railgun-current-file-info))))
-    (find-file path)
-    (save-buffer)
-    (rg-clear-caches)))
+  (with-slots (type) (rg-current-file-info)
+    (if (or (eq 'spec type)
+            (eq 'unit-test type))
+        (rg-find-implementation)
+      (rg-find-spec-or-test))))
 
 (defun rg-find-implementation ()
   (interactive)
-  (or (let* ((target (replace-regexp-in-string "\\(Spec\\|Test\\)$" "" (rg-current-class)))
-             (path (rg-file-path (assoc target (railgun-files)))))
+  (or (let* ((target (rg-remove "\\(Spec\\|Test\\)$" (rg-current-class)))
+             (path (rg-path-for-class target)))
         (and path (find-file path)))
 
       (rg-wide-find-implementation)))
@@ -231,40 +165,121 @@
           (rg-find-test))
       (rg-wide-find-spec-or-test)))
 
-(defun rg-toggle-test-and-implementation ()
+(defun rg-find-spec ()
   (interactive)
-  (let ((type (rg-file-type (railgun-current-file-info))))
-    (if (or (eq 'spec type)
-            (eq 'unit-test type))
-        (rg-find-implementation)
-      (rg-find-spec-or-test))))
+  (let* ((target (concat (rg-current-class) "Spec"))
+         (path (rg-path-for-class target)))
+    (and path (find-file path))))
+
+(defun rg-find-test ()
+  (interactive)
+  (let* ((target (concat (rg-current-class) "Test"))
+         (path (rg-path-for-class target)))
+    (and path (find-file path))))
+
+(defun rg-wide-find-spec-or-test ()
+  (interactive)
+  (let* ((file (rg-file-name-for-path (buffer-file-name)))
+         (spec-file (rg-file-name-postfix file "_spec"))
+         (test-file (rg-file-name-postfix file "_test")))
+    (rg-goto-file-in-list "Spec/Tests: "
+                          (append (rg-filter-by 'file-name spec-file)
+                                  (rg-filter-by 'file-name test-file)))))
+
+(defun rg-wide-find-implementation ()
+  (interactive)
+  (let* ((file (rg-file-name-for-path (buffer-file-name)))
+         (impl (rg-remove "\\(_test\\|_spec\\)" file))
+         (files (rg-filter-by 'file-name impl)))
+    (rg-goto-file-in-list "Implementation: " files)))
+
+(defun rg-create-spec ()
+  (interactive)
+
+  (with-slots (type relative-path) (rg-current-file-info)
+    (let* ((search-path (rg-search-path type))
+           (spec-path (rg-remove "app/\\(assets/\\)?" search-path))
+           (path (rg-path (concat "spec/" spec-path relative-path))))
+
+      (find-file (rg-replace "\.\\([a-z]+\\)$" "_spec.\\1" path))
+      (save-buffer)
+      (rg-clear-caches))))
+
+(defun rg-spec? ()
+  (eq 'spec (rg-current type)))
+
+(defun rg-test? ()
+  (let ((type (rg-current type)))
+    (or (eq 'unit-test type)
+        (eq 'func-test type))))
+
+(defun rg-file-name-postfix (file-name postfix)
+  (replace-regexp-in-string "^\\(.+\\)\\.\\([a-z]+\\)$"
+                            (concat "\\1" postfix ".\\2")
+                            file))
+
+(defun rg-goto-file-in-list (prompt slot files)
+  (let* ((len (length files))
+         (files-alist (object-assoc-list slot files))
+         (search-by (mapcar 'car files-alist)))
+
+    (if (= len 0) (message "Could not find spec or test")
+
+      (let ((file (if (= len 1) (car list)
+                    (assoc (ido-completing-read prompt search-by) files-alist))))
+
+        (find-file (slot-value file path))))))
+
+(defun rg-build-test-path (file)
+  (with-slots (relative-path type) file
+   (let ((path (replace-regexp-in-string ".rb$" "_test.rb" relative-path))
+         (base "test/"))
+
+    (rg-path (cond ((eq type 'controller)
+                    (concat base "functional/" path))
+                   ((eq type 'helper)
+                    (concat base "unit/helper" path))
+                   (t
+                    (concat base "unit/" path)))))))
+
+(defun rg-create-test ()
+  (interactive)
+  (let ((path (rg-build-test-path (rg-current-file-info))))
+    (find-file path)
+    (save-buffer)
+    (rg-clear-caches)))
 
 
-;;; define-finder
+;;; finders
+
+(defun rg-find-class ()
+  (interactive)
+  (find-file (rg-prompt-for-path "Class:" (rg-files))))
 
 (defmacro rg-define-finder (type &optional prompt)
   (let ((prompt (or prompt (capitalize (symbol-name type)))))
     `(defun ,(intern (concat "rg-find-" (symbol-name type))) ()
        (interactive)
        (let ((prompt (concat ,prompt ": "))
-             (list (rg-filter-by-type (quote ,type))))
+             (list (rg-filter-by 'type (quote ,type))))
          (find-file (rg-prompt-for-path prompt list))))))
 
 (defun rg-prompt-for-table-name (prompt)
-  (let ((file (rg-prompt-for-file prompt (railgun-entities))))
-    (rg-table-for-path (railgun-file-relative-path file))))
-
-(defun rg-prompt-for-path (prompt list)
-  (rg-file-path (railgun-prompt-for-file prompt list)))
-
-(defun rg-prompt-for-file (prompt list)
-  (assoc (rg-prompt prompt list) list))
+  (let ((file (rg-prompt-for-file prompt (rg-filter-by 'type rg-entity))))
+    (rg-table-for-path (rg-file-relative-path file))))
 
 (defun rg-find-path-in-list (class-name list)
-  (rg-file-path (assoc class-name list)))
+  (slot-value (assoc class-name list)) path)
+
+(defun rg-prompt-for-path (prompt list)
+  (slot-value (rg-prompt-for-file prompt list) 'path))
+
+(defun rg-prompt-for-file (prompt files)
+  (let ((alist (object-assoc-list 'class files)))
+    (object-assoc (rg-prompt prompt alist) 'class files)))
 
 (defun rg-prompt-for (type prompt)
-  (rg-prompt prompt (railgun-filter-by-type type)))
+  (rg-prompt prompt (rg-filter-by-type type)))
 
 (defun rg-prompt (prompt list)
   (ido-completing-read prompt (mapcar 'car list) nil t))
@@ -311,13 +326,13 @@
     (presenter  . "app/presenters/")
     (helper     . "app/helpers/")
     (service    . ("app/services/" . "app/services/[a-zA-Z-0-9_]+/"))
-    (domain     . ("domain/" . "domain/\\([a-zA-Z0-9_]+/\\)?"))
+    (domain     . "domain/")
     (lib        . "lib/")
     (unit-test  . ("test/unit/" . "test/unit/\\(helper/\\)?"))
     (func-test  . "test/functional/")
     (spec       . ("spec/" . "spec/\\(domain/[a-zA-Z0-9_]+/\\|[a-zA-Z0-9_]+/\\)"))))
 
-(defvar rg--class-paths (copy-list railgun--default-class-paths))
+(defvar rg--class-paths (copy-list rg--default-class-paths))
 
 (defun rg-add-class-path (path)
   (push path rg--class-paths))
@@ -325,7 +340,7 @@
 (defun rg-reset-class-paths ()
   (interactive)
   (rg-clear-caches)
-  (setq rg--class-paths (copy-list railgun--default-class-paths)))
+  (setq rg--class-paths (copy-list rg--default-class-paths)))
 
 (defun rg-file-types ()
   (mapcar 'car rg--class-paths))
@@ -338,8 +353,80 @@
   (let ((path (cdr (assoc type rg--class-paths))))
     (if (listp path) (cdr path) path)))
 
+
+;;; rg-files
+(defvar rg--files nil)
+(defun rg-files ()
+  (if rg--files rg--files
+    (setq rg--files (rg-make-files))))
+
+(defun rg-clear-caches ()
+  (interactive)
+  (setq rg--files nil))
+
+(defun rg-make-files ()
+  (loop for type in (rg-file-types)
+        append (mapcar (lambda (path) (rg-make-file type path))
+                       (all-files-under-dir-recursively
+                        (rg-path (rg-search-path type))))))
+
+
+(defclass rg-file ()
+  ((class
+    :initarg :file-class
+    :initform ""
+    :documentation "guess at the ruby class based on path")
+   (relative-path
+    :initarg :relative-path
+    :initform ""
+    :documentation "relative path from the base of the search path")
+   (type
+    :initarg :file-type
+    :initform nil
+    :documentation "type of file (from rg-paths)")
+   (path
+    :initarg :path
+    :initform ""
+    :documentation "full path to the file")
+   (name
+    :initarg :file-name
+    :initform ""
+    :documentation "name of the file (without the path)"))
+  "A file in the rails project")
+
+(defun rg-make-file (type path)
+  (let ((relative-path (rg-relative-path type path)))
+    (rg-file (concat "from " path)
+             :path path
+             :file-class (rg-class-for-path relative-path)
+             :file-type type
+             :file-name (rg-file-name-for-path path)
+             :relative-path relative-path)))
+
+(defun rg-filter-by (slot search)
+  (let ((slot-equals
+         (lambda (file)
+           (let ((val (slot-value file slot)))
+             (if (stringp search)
+                 (string= search val)
+               (eq search val))))))
+
+    (rg-filter slot-equals (rg-files))))
+
+(defun rg-current-file ()
+  (rg-make-file (buffer-file-name)))
+
+(defun rg-current (slot)
+  (slot-value (rg-current-file) slot))
+
+(defun rg-file-name-for-path (path)
+  (replace-regexp-in-string "^/\\(.*/\\)*" "" path))
+
+(defun rg-file-for-class (class)
+  (assoc class (rg-files)))
+
 (defun rg-relative-path (type path)
-  (let ((replace (rg-path (railgun-base-regexp type))))
+  (let ((replace (rg-path (rg-base-regexp type))))
     (replace-regexp-in-string replace "" path)))
 
 (defun rg-class-for-path (path)
@@ -348,8 +435,11 @@
          (capitalized (capitalize moduled)))
     (replace-regexp-in-string "_" "" capitalized)))
 
+(defun rg-path-for-class (file-class)
+  (slot-value (object-assoc file-class class (rg-files)) path))
+
 (defun rg-table-for-file (file)
-  (rg-table-for-path (railgun-file-relative-path file)))
+  (rg-table-for-path (rg-file-relative-path file)))
 
 (defun rg-table-for-path (path)
   (let* ((chopped (replace-regexp-in-string ".rb$" "" path))
@@ -357,80 +447,15 @@
     (pluralize-string moduled)))
 
 
-;;; rg-files
-
-(defun rg-debug--message-files ()
-  (interactive)
-  (rg-clear-caches)
-  (print (rg-files)))
-
-(defun rg-clear-caches ()
-  (interactive)
-  (setq rg--files nil))
-
-(defvar rg--files nil)
-(defun rg-files ()
-  (if rg--files railgun--files
-    (setq rg--files (build-railgun-files))))
-
-(defun rg-entities ()
-  (rg-filter-by-type railgun-entity))
-
-(defun rg-filter-by-type (type)
-  (delq nil
-        (mapcar (lambda (file)
-                  (and (eq type (rg-file-type file)) file))
-                (rg-files))))
-
-(defun rg-filter-by-file-name (file-name)
-  (delq nil
-        (mapcar (lambda (file)
-                  (and (string= file-name (rg-file-name file))
-                       file))
-                (rg-files))))
-
-(defun build-rg-files ()
-  (loop for type in (rg-file-types)
-        append (mapcar 'rg-build-file-info
-                       (all-files-under-dir-recursively (rg-path (railgun-search-path type))))))
-
-(defun rg-current-file-info ()
-  (rg-find-file-for-path (buffer-file-name)))
-
-(defun rg-current-class ()
-  (car (rg-current-file-info)))
-
-(defun rg-build-file-info (path)
-  (let* ((relative-path (rg-relative-path type path))
-         (class-name (rg-class-for-path relative-path))
-         (file-name (rg-file-name-for-path path)))
-    `(,class-name ,relative-path ,type ,path ,file-name)))
-
-(defun rg-file-name-for-path (path)
-  (replace-regexp-in-string "^/\\(.*/\\)*" "" path))
-
-(defun rg-relative-path-for-class (class)
-  (rg-file-relative-path (railgun-file-for-class class)))
-
-(defun rg-file-for-class (class)
-  (assoc class (rg-files)))
-
-(defun rg-find-file-for-path (path)
-  (find-if '(lambda (info)
-              (string= path (rg-file-path info)))
-           (rg-files)))
-
-(defun rg-file-relative-path (file) (cadr file))
-(defun rg-file-type          (file) (caddr file))
-(defun rg-file-path          (file) (cadddr file))
-(defun rg-file-name          (file) (caddddr file))
-
 ;;; utils
 
+(defun rg-replace regexp replace string
+  "REALLY tired of typing replace-regexp-in-string"
+  (replace-regexp-in-string regexp replace string))
 
-(defun caddddr (x)
-  "Return the `car' of the `cdr' of the `cdr' of the `cdr' of the `cdr' of X."
-  (car (cdr (cdr (cdr (cdr x))))))
+(defun rg-remove regexp string
+  "REALLY tired of typing replace-regexp-in-string"
+  (replace-regexp-in-string regexp "" string))
 
 (defun rg-path (path)
   (concat (railway-root) path))
@@ -438,17 +463,21 @@
 (defun rg-constantize (name)
   (replace-regexp-in-string "_" "" (capitalize name)))
 
+(defun rg-filter (condp lst)
+  (delq nil
+        (mapcar (lambda (x) (and (funcall condp x) x)) lst)))
+
 ;;; defines
 
-(rg-define-creator helper "_helper.rb" 'railgun-helper-template)
-(rg-define-creator model ".rb" 'railgun-model-template)
-(rg-define-creator controller "_controller.rb" 'railgun-controller-helper)
+(rg-define-creator helper "_helper.rb" 'rg-helper-template)
+(rg-define-creator model ".rb" 'rg-model-template)
+(rg-define-creator controller "_controller.rb" 'rg-controller-helper)
 (rg-define-creator service "_service.rb")
 
 (rg-define-finder model)
 (rg-define-finder controller)
 (rg-define-finder presenter)
-(rg-define-finder servvice)
+(rg-define-finder service)
 (rg-define-finder helper)
 (rg-define-finder domain "Entity")
 (rg-define-finder lib)
