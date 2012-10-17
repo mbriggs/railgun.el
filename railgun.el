@@ -73,7 +73,8 @@
   "entity type to be used in railgun.
    change this if you have your models as another type")
 
-(defvar rg-factory-file-path "spec/factories.rb")
+(defvar rg-factory-file-path "test/blueprints.rb")
+(defvar rg-blueprints-file-path "test/blueprints.rb")
 
 ;;; find in files
 
@@ -82,25 +83,29 @@
   (let* ((class (rg-prompt "Blueprint for" (rg-filter-by file-type rg-entity)))
          (search (concat "^" class ".blueprint")))
 
-    (when (rg-find-file-if-it-exists "test/blueprints.rb")
+    (when (rg-find-file-if-it-exists rg-blueprints-file-path)
       (or (re-search-forward search nil t)
           (re-search-backward search nil t)))))
 
-(defun rg-find-factory ()
+(defun rg-find-factory (&optional file)
   (interactive)
-  (let* ((file (rg-prompt-for-file "Factory for" (rg-filter-by file-type rg-entity)))
-         (class (concat "factory.*" (car file)))
-         (sym (concat "factory +:" (rg-table-for-file file))))
+  (let* ((file (or file (rg-prompt-for-file "Factory for: " (rg-files))))
+         (class (concat "factory.*" (slot-value file 'class)))
+         (sym (concat "factory +:['\"]?" (rg-table-for-file file) "['\"]?"))
+         ;; TODO: remove me when I stop working on packmanager
+         (strange-path (concat "factory +:['\"]?"
+                               (rg-replace "::" "/" (singularize-string
+                                                     (rg-table-for-file file)))
+                               "['\"]?")))
 
     (when (rg-find-file-if-it-exists rg-factory-file-path)
-      (or (or (re-search-forward class nil t)
-              (re-search-backward class nil t))
-          (or (re-search-forward sym nil t)
-              (re-search-backward sym nil t))))))
+      (or (rg-search-in-file class)
+          (rg-search-in-file spec)
+          (rg-search-in-file strange-path)))))
 
-(defun rg-find-schema ()
+(defun rg-find-schema (&optional table-name)
   (interactive)
-  (let ((name (rg-prompt-for-table-name "Schema for")))
+  (let ((name (or table-name (rg-prompt-for-table-name "Schema for: "))))
 
     (cond ((rg-find-file-if-it-exists "db/schema.rb")
            (rg-search-in-file (concat "create_table \"" name "\"")))
@@ -108,13 +113,12 @@
           ((rg-find-file-if-it-exists "db/structure.sql")
            (rg-search-in-file (concat "CREATE TABLE " name " ")))
 
-          (t (message "can't find schema file, run rake db:migrate first")))))
+          (t nil))))
 
 
 (defun rg-search-in-file (re)
   (or (re-search-forward re nil t)
-      (re-search-backward re nil t))
-  (message (concat "looking for " name)))
+      (re-search-backward re nil t)))
 
 (defun rg-find-file-if-it-exists (file)
   (let ((path (rg-path file)))
@@ -126,7 +130,7 @@
 (defun rg-find-entity ()
   (interactive)
   (let ((prompt (capitalize (symbol-name rg-entity)))
-        (list (rg-filter-by file-type rg-entity)))
+        (list (rg-filter-by 'type rg-entity)))
     (find-file (rg-prompt-for-path (concat prompt ": ") list))))
 
 (defun rg-find-class ()
@@ -145,7 +149,7 @@
 
 (defun rg-toggle-test-and-implementation ()
   (interactive)
-  (with-slots (type) (rg-current-file-info)
+  (with-slots (type) (rg-current-file)
     (if (or (eq 'spec type)
             (eq 'unit-test type))
         (rg-find-implementation)
@@ -196,7 +200,7 @@
 (defun rg-create-spec ()
   (interactive)
 
-  (with-slots (type relative-path) (rg-current-file-info)
+  (with-slots (type relative-path) (rg-current-file)
     (let* ((search-path (rg-search-path type))
            (spec-path (rg-remove "app/\\(assets/\\)?" search-path))
            (path (rg-path (concat "spec/" spec-path relative-path))))
@@ -244,7 +248,7 @@
 
 (defun rg-create-test ()
   (interactive)
-  (let ((path (rg-build-test-path (rg-current-file-info))))
+  (let ((path (rg-build-test-path (rg-current-file))))
     (find-file path)
     (save-buffer)
     (rg-clear-caches)))
@@ -265,8 +269,8 @@
          (find-file (rg-prompt-for-path prompt list))))))
 
 (defun rg-prompt-for-table-name (prompt)
-  (let ((file (rg-prompt-for-file prompt (rg-filter-by 'type rg-entity))))
-    (rg-table-for-path (rg-file-relative-path file))))
+  (let ((file (rg-prompt-for-file prompt (rg-files))))
+    (rg-table-for-path (slot-value file 'relative-path))))
 
 (defun rg-find-path-in-list (class-name list)
   (slot-value (assoc class-name list)) path)
@@ -414,10 +418,16 @@
     (rg-filter slot-equals (rg-files))))
 
 (defun rg-current-file ()
-  (rg-make-file (buffer-file-name)))
+  (let ((path (buffer-file-name)))
+    (rg-make-file (rg-type-from-path path) path)))
 
 (defun rg-current (slot)
   (slot-value (rg-current-file) slot))
+
+(defun rg-type-from-path (path)
+  (let ((path-matches (lambda (type)
+                        (string-match (rg-search-path type) path))))
+    (find-if path-matches (rg-file-types))))
 
 (defun rg-file-name-for-path (path)
   (replace-regexp-in-string "^/\\(.*/\\)*" "" path))
@@ -439,21 +449,21 @@
   (slot-value (object-assoc file-class class (rg-files)) path))
 
 (defun rg-table-for-file (file)
-  (rg-table-for-path (rg-file-relative-path file)))
+  (rg-table-for-path (slot-value file 'relative-path)))
 
 (defun rg-table-for-path (path)
-  (let* ((chopped (replace-regexp-in-string ".rb$" "" path))
-         (moduled (replace-regexp-in-string "/" "_" chopped)))
+  (let* ((chopped (rg-remove ".rb$" path))
+         (moduled (rg-replace "/" "_" chopped)))
     (pluralize-string moduled)))
 
 
 ;;; utils
 
-(defun rg-replace regexp replace string
+(defun rg-replace (regexp replace string)
   "REALLY tired of typing replace-regexp-in-string"
   (replace-regexp-in-string regexp replace string))
 
-(defun rg-remove regexp string
+(defun rg-remove (regexp string)
   "REALLY tired of typing replace-regexp-in-string"
   (replace-regexp-in-string regexp "" string))
 
