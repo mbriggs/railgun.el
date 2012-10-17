@@ -211,10 +211,10 @@
       (rg-clear-caches))))
 
 (defun rg-spec? ()
-  (eq 'spec (rg-current type)))
+  (eq 'spec (rg-current 'type)))
 
 (defun rg-test? ()
-  (let ((type (rg-current type)))
+  (let ((type (rg-current 'type)))
     (or (eq 'unit-test type)
         (eq 'func-test type))))
 
@@ -225,13 +225,13 @@
 
 (defun rg-goto-file-in-list (prompt files)
   (let* ((len (length files))
-         (files-alist (object-assoc-list 'relative-path files))
-         (search-by (mapcar 'car files-alist)))
+         (search-by (mapcar (lambda (file)
+                              (slot-value file 'root-path)) files)))
 
     (if (= len 0) (message "Could not find spec or test")
 
       (let ((file (if (= len 1) (car files)
-                    (object-assoc (ido-completing-read prompt search-by) 'relative-path files))))
+                    (object-assoc (ido-completing-read prompt search-by) 'root-path files))))
 
         (find-file (slot-value file 'path))))))
 
@@ -385,6 +385,10 @@
     :initarg :relative-path
     :initform ""
     :documentation "relative path from the base of the search path")
+   (root-path
+    :initarg :root-path
+    :initform ""
+    :documentation "relative path from the base of the project root path")
    (type
     :initarg :file-type
     :initform nil
@@ -404,6 +408,7 @@
     (rg-file (concat "from " path)
              :path path
              :file-class (rg-class-for-path relative-path)
+             :root-path (rg-remove (rg-path) path)
              :file-type type
              :file-name (rg-file-name-for-path path)
              :relative-path relative-path)))
@@ -427,7 +432,7 @@
 
 (defun rg-type-from-path (path)
   (let ((path-matches (lambda (type)
-                        (string-match (rg-search-path type) path))))
+                        (string-match (rg-path (rg-search-path type)) path))))
     (find-if path-matches (rg-file-types))))
 
 (defun rg-file-name-for-path (path)
@@ -470,7 +475,7 @@
   "REALLY tired of typing replace-regexp-in-string"
   (replace-regexp-in-string regexp "" string))
 
-(defun rg-path (path)
+(defun rg-path (&optional path)
   (concat (railway-root) path))
 
 (defun rg-constantize (name)
