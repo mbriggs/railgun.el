@@ -158,7 +158,7 @@
 
 (defun rg-find-implementation ()
   (interactive)
-  (or (let* ((target (rg-remove "\\(Spec\\|Test\\)$" (rg-current-class)))
+  (or (let* ((target (rg-remove "\\(Spec\\|Test\\)$" (rg-current 'class)))
              (path (rg-path-for-class target)))
         (and path (find-file path)))
 
@@ -172,13 +172,13 @@
 
 (defun rg-find-spec ()
   (interactive)
-  (let* ((target (concat (rg-current-class) "Spec"))
+  (let* ((target (concat (rg-current 'class) "Spec"))
          (path (rg-path-for-class target)))
     (and path (find-file path))))
 
 (defun rg-find-test ()
   (interactive)
-  (let* ((target (concat (rg-current-class) "Test"))
+  (let* ((target (concat (rg-current 'class) "Test"))
          (path (rg-path-for-class target)))
     (and path (find-file path))))
 
@@ -188,14 +188,14 @@
          (spec-file (rg-file-name-postfix file "_spec"))
          (test-file (rg-file-name-postfix file "_test")))
     (rg-goto-file-in-list "Spec/Tests: "
-                          (append (rg-filter-by 'file-name spec-file)
-                                  (rg-filter-by 'file-name test-file)))))
+                          (append (rg-filter-by 'name spec-file)
+                                  (rg-filter-by 'name test-file)))))
 
 (defun rg-wide-find-implementation ()
   (interactive)
   (let* ((file (rg-file-name-for-path (buffer-file-name)))
          (impl (rg-remove "\\(_test\\|_spec\\)" file))
-         (files (rg-filter-by 'file-name impl)))
+         (files (rg-filter-by 'name impl)))
     (rg-goto-file-in-list "Implementation: " files)))
 
 (defun rg-create-spec ()
@@ -223,17 +223,17 @@
                             (concat "\\1" postfix ".\\2")
                             file))
 
-(defun rg-goto-file-in-list (prompt slot files)
+(defun rg-goto-file-in-list (prompt files)
   (let* ((len (length files))
-         (files-alist (object-assoc-list slot files))
+         (files-alist (object-assoc-list 'relative-path files))
          (search-by (mapcar 'car files-alist)))
 
     (if (= len 0) (message "Could not find spec or test")
 
-      (let ((file (if (= len 1) (car list)
-                    (assoc (ido-completing-read prompt search-by) files-alist))))
+      (let ((file (if (= len 1) (car files)
+                    (object-assoc (ido-completing-read prompt search-by) 'relative-path files))))
 
-        (find-file (slot-value file path))))))
+        (find-file (slot-value file 'path))))))
 
 (defun rg-build-test-path (file)
   (with-slots (relative-path type) file
@@ -447,7 +447,9 @@
     (replace-regexp-in-string "_" "" capitalized)))
 
 (defun rg-path-for-class (file-class)
-  (slot-value (object-assoc file-class class (rg-files)) path))
+  (let ((file (object-assoc file-class 'class (rg-files))))
+    (when file
+      (slot-value file 'path))))
 
 (defun rg-table-for-file (file)
   (rg-table-for-path (slot-value file 'relative-path)))
